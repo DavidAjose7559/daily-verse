@@ -1,0 +1,35 @@
+name: Update Daily Verse
+
+on:
+  schedule:
+    - cron: '0 5 * * *'  # Runs at 12:00 AM ET (Eastern Time)
+  workflow_dispatch:     # Allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run script to generate daily.js
+        run: node index.js
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add daily.js
+          git commit -m "🔁 Auto-update daily verse" || echo "No changes to commit"
+          git push
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
