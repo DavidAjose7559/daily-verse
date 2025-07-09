@@ -1,13 +1,14 @@
 const axios = require('axios');
 const fs = require('fs');
 const { OpenAI } = require('openai');
+const simpleGit = require('simple-git');
+const git = simpleGit();
 
-// Initialize OpenAI using secret from GitHub Actions
+// Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Verse map: New Testament books → number of verses per chapter
 const verseMap = {
   "Matthew": [25, 23, 17, 25, 48, 34, 29, 34, 38, 42, 30, 50, 58, 36, 39, 28, 27, 35, 30, 34, 46, 46, 39, 51, 46, 75, 66, 20],
   "Mark": [45, 28, 35, 41, 43, 56, 37, 38, 50, 52, 33, 44, 37, 72, 47, 20],
@@ -37,21 +38,16 @@ const verseMap = {
   "Jude": [25]
 };
 
-// Pick a valid random verse
 function getRandomVerseReference() {
   const books = Object.keys(verseMap);
   const book = books[Math.floor(Math.random() * books.length)];
-
   const chapterIndex = Math.floor(Math.random() * verseMap[book].length);
   const chapter = chapterIndex + 1;
-
   const maxVerses = verseMap[book][chapterIndex];
   const verse = Math.floor(Math.random() * maxVerses) + 1;
-
   return `${book} ${chapter}:${verse}`;
 }
 
-// Fetch the verse text from Bible API
 async function fetchVerseText(reference) {
   try {
     const response = await axios.get(`https://bible-api.com/${encodeURIComponent(reference)}`);
@@ -61,7 +57,6 @@ async function fetchVerseText(reference) {
   }
 }
 
-// Get context from OpenAI
 async function generateContext(verse, text) {
   const prompt = `Explain this Bible verse using only the biblical context. Be concise (max 3 short paragraphs). Include:
 - Pretext (what comes before)
@@ -83,14 +78,12 @@ ${verse} - "${text}"`;
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
     });
-
     return chatResponse.choices[0].message.content.trim();
   } catch (error) {
     throw new Error(`Error from ChatGPT: ${error.message}`);
   }
 }
 
-// Main function
 (async () => {
   const verseRef = getRandomVerseReference();
   console.log(`📖 Verse: ${verseRef}`);
@@ -109,13 +102,15 @@ ${verse} - "${text}"`;
       context: contextHTML
     };
 
-    // Write to daily.js
-    fs.writeFileSync(
-      'daily.js',
-      `const dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`
-    );
-
+    fs.writeFileSync('daily.js', `const dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`);
     console.log("✅ Verse saved to daily.js");
+
+    // Commit and push to GitHub
+    await git.add('daily.js');
+    await git.commit('🔁 Auto-update daily verse');
+    await git.push('origin', 'main');
+
+    console.log("🚀 Changes pushed to GitHub");
   } catch (error) {
     console.error(`❌ ${error.message}`);
   }
