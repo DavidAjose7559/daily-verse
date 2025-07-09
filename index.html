@@ -25,7 +25,7 @@
         document.getElementById('date').textContent = `Date: ${data.date}`;
         document.getElementById('reference').textContent = data.reference;
         document.getElementById('text').textContent = data.text;
-        document.getElementById('context').textContent = data.context; // 👈 allow HTML!
+        document.getElementById('context').innerHTML = data.context; // 👈 allow HTML!
       })
       .catch(error => {
         document.body.innerHTML = "<h2 style='text-align:center;'>Error loading daily verse. Make sure <code>daily.json</code> exists and is valid.</h2>";
