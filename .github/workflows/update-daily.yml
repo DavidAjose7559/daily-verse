@@ -3,7 +3,7 @@ name: Update Daily Verse
 on:
   schedule:
     - cron: '*/1 * * * *'  # Runs daily at 12:00 AM Eastern Time (ET)
-  workflow_dispatch:      # Manual trigger via GitHub UI
+  workflow_dispatch:      # Manual trigger via GitHub UI 
 
 jobs:
   build:
