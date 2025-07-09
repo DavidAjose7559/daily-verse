@@ -26,11 +26,12 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node index.js
 
-            - name: Commit and push changes
+      - name: Commit and push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add daily.js
           git commit -m "🔁 Auto-update daily verse" || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} HEAD:main
-
