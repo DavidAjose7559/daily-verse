@@ -107,20 +107,20 @@ ${verse} - "${text}"`;
     // Git config and push
     const remote = `https://${process.env.GH_PAT}@github.com/DavidAjose7559/daily-verse.git`;
 
-await git.removeRemote('origin').catch(() => {});
-await git.addRemote('origin', remote);
-await git.addConfig('user.email', 'davidajose30@gmail.com');
-await git.addConfig('user.name', 'David Ajose');
+    await git.removeRemote('origin').catch(() => {});
+    await git.addRemote('origin', remote);
+    await git.addConfig('user.email', 'davidajose30@gmail.com');
+    await git.addConfig('user.name', 'David Ajose');
 
-await git.add('daily.js');
-await git.commit('🔁 Auto-update daily verse').catch(() => {
-  console.log("ℹ️ No changes to commit.");
-});
+    await git.add('daily.js');
+    await git.commit('🔁 Auto-update daily verse').catch(() => {
+      console.log("ℹ️ No changes to commit.");
+    });
 
-try {
-  await git.push('origin', 'main');
-  console.log("🚀 Changes pushed to GitHub");
-} catch (err) {
-  console.error("❌ Push failed:", err.message);
-}
+    await git.push('origin', 'main');
+    console.log("🚀 Changes pushed to GitHub");
+
+  } catch (error) {
+    console.error(`❌ ${error.message}`);
+  }
 })();
