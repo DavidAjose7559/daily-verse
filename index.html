@@ -18,19 +18,13 @@
     <div id="context" class="context"></div>
   </div>
 
-  <script>
-    fetch('daily.json')
-      .then(response => response.json())
-      .then(data => {
-        document.getElementById('date').textContent = `Date: ${data.date}`;
-        document.getElementById('reference').textContent = data.reference;
-        document.getElementById('text').textContent = data.text;
-        document.getElementById('context').innerHTML = data.context; // 👈 allow HTML!
-      })
-      .catch(error => {
-        document.body.innerHTML = "<h2 style='text-align:center;'>Error loading daily verse. Make sure <code>daily.json</code> exists and is valid.</h2>";
-        console.error("Error loading JSON:", error);
-      });
-  </script>
+ <script src="daily.js"></script>
+<script>
+  document.getElementById('date').textContent = `Date: ${dailyVerse.date}`;
+  document.getElementById('reference').textContent = dailyVerse.reference;
+  document.getElementById('text').textContent = dailyVerse.text;
+  document.getElementById('context').innerHTML = dailyVerse.context;
+</script>
+
 </body>
 </html>
