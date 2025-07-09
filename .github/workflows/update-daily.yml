@@ -2,8 +2,8 @@ name: Update Daily Verse
 
 on:
   schedule:
-    - cron: '*/1 * * * *'  # Runs at 12:00 AM ET (Eastern Time)
-  workflow_dispatch:     # Allows manual trigger from GitHub UI
+    - cron: '*/1 * * * *'  # Runs daily at 12:00 AM Eastern Time (ET)
+  workflow_dispatch:      # Manual trigger via GitHub UI
 
 jobs:
   build:
@@ -22,6 +22,8 @@ jobs:
         run: npm install
 
       - name: Run script to generate daily.js
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node index.js
 
       - name: Commit and push changes
@@ -31,5 +33,3 @@ jobs:
           git add daily.js
           git commit -m "🔁 Auto-update daily verse" || echo "No changes to commit"
           git push
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
