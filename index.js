@@ -108,6 +108,9 @@ ${verse} - "${text}"`;
     const remote = `https://${process.env.GH_PAT}@github.com/DavidAjose7559/daily-verse.git`;
 
     await git.addRemote('auth-origin', remote).catch(() => {}); // ignore if exists
+    await git.addConfig('user.email', 'davidajose30@gmail.com');
+    await git.addConfig('user.name', 'David Ajose');
+
     await git.add('daily.js');
     await git.commit('🔁 Auto-update daily verse');
     await git.push('auth-origin', 'main');
