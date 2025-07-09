@@ -1,0 +1,18 @@
+const dailyVerse = {
+  date: "2025-07-09",
+  reference: "2 John 1:9",
+  text: "Whoever transgresses and doesn’t remain in the teaching of Christ, doesn’t have God. He who remains in the teaching, the same has both the Father and the Son.",
+  context: `
+    <p><strong>Pretext:</strong> Before 2 John 1:9, the apostle John warns against deceivers who do not acknowledge Jesus Christ coming in the flesh (2 John 1:7). He cautions believers to be vigilant and not lose what they have worked for, emphasizing the importance of abiding in the truth to receive a full reward (2 John 1:8).</p>
+
+    <p><strong>Context:</strong> The verse itself, 2 John 1:9, underscores the necessity of adhering to the teachings of Christ. John contrasts those who transgress and do not remain in Christ’s teachings with those who do. He emphasizes that remaining in the doctrine of Christ ensures a relationship with both God the Father and the Son, highlighting the integral connection between right teaching and fellowship with God.</p>
+
+    <p><strong>Post-text:</strong> Following this verse, John instructs believers not to receive into their homes or even greet anyone who does not bring this teaching (2 John 1:10). He warns that doing so would make them participants in the deeds of the deceivers, thus stressing the gravity of upholding the truth and separating from false teachings.</p>
+
+    <h4>Key Greek Words:</h4>
+    <ul>
+      <li><strong>Transgresses</strong> – <em>παραβαίνων (parabainōn)</em>: This means to go beyond or overstep a boundary, indicating a departure from the established teachings of Christ.</li>
+      <li><strong>Teaching</strong> – <em>διδαχή (didachē)</em>: This refers to the doctrine or instruction, specifically the teachings of Jesus Christ that believers are urged to adhere to.</li>
+    </ul>
+  `
+};
