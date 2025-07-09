@@ -101,7 +101,10 @@ ${verse} - "${text}"`;
       context: contextHTML
     };
 
-    fs.writeFileSync('daily.js', `const dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`);
+    const timestamp = new Date().toISOString();
+const fileContent = `// Updated at ${timestamp}\nconst dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`;
+fs.writeFileSync('daily.js', fileContent);
+
     console.log("✅ Verse saved to daily.js");
 
     // Git config and push
