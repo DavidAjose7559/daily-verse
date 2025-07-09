@@ -4,7 +4,6 @@ const { OpenAI } = require('openai');
 const simpleGit = require('simple-git');
 const git = simpleGit();
 
-// Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -105,12 +104,16 @@ ${verse} - "${text}"`;
     fs.writeFileSync('daily.js', `const dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`);
     console.log("✅ Verse saved to daily.js");
 
-    // Commit and push to GitHub
+    // Git config and push
+    const remote = `https://${process.env.GH_PAT}@github.com/DavidAjose7559/daily-verse.git`;
+
+    await git.addRemote('auth-origin', remote).catch(() => {}); // ignore if exists
     await git.add('daily.js');
     await git.commit('🔁 Auto-update daily verse');
-    await git.push('origin', 'main');
+    await git.push('auth-origin', 'main');
 
     console.log("🚀 Changes pushed to GitHub");
+
   } catch (error) {
     console.error(`❌ ${error.message}`);
   }
