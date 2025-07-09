@@ -1,5 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
+const fs = require('fs');
 const { OpenAI } = require('openai');
 
 // Initialize OpenAI
@@ -70,7 +71,10 @@ Also, identify 1–2 key Greek words (or Hebrew for OT), showing:
 - The original word
 - A short meaning
 
-Do not include life application or personal opinion. This is to help memorize and quote the verse accurately:\n\n${verse} - "${text}"`;
+Respond in clean HTML using <p>, <strong>, <ul>, <li>, and <em> tags.
+Avoid personal opinions or life application. This is to help memorize and quote the verse accurately.
+
+${verse} - "${text}"`;
 
   try {
     const chatResponse = await openai.chat.completions.create({
@@ -94,20 +98,23 @@ Do not include life application or personal opinion. This is to help memorize an
     const verseText = await fetchVerseText(verseRef);
     console.log(`🔹 Text: "${verseText}"`);
 
-    const context = await generateContext(verseRef, verseText);
-    console.log(`🧠 Context:\n${context}`);
-const fs = require('fs');
+    const contextHTML = await generateContext(verseRef, verseText);
+    console.log(`🧠 Context:\n${contextHTML}`);
 
-const dailyVerse = {
-  date: new Date().toISOString().split('T')[0], // e.g. "2025-07-09"
-  reference: verseRef,
-  text: verseText,
-  context: context
-};
+    const dailyVerse = {
+      date: new Date().toISOString().split('T')[0],
+      reference: verseRef,
+      text: verseText,
+      context: contextHTML
+    };
 
-fs.writeFileSync('daily.json', JSON.stringify(dailyVerse, null, 2));
-console.log("✅ Verse saved to daily.json");
+    // Write to daily.js instead of JSON
+    fs.writeFileSync(
+      'daily.js',
+      `const dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`
+    );
 
+    console.log("✅ Verse saved to daily.js");
   } catch (error) {
     console.error(`❌ ${error.message}`);
   }
