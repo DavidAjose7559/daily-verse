@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Daily Bible Verse</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 40px auto;
+      padding: 20px;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    h1 {
+      font-size: 1.8rem;
+      color: #005a9c;
+    }
+    h2 {
+      font-size: 1.4rem;
+      margin-top: 10px;
+    }
+    pre {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .date {
+      color: #777;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>📖 Daily Bible Verse</h1>
+  <p class="date" id="date"></p>
+  <h2 id="reference"></h2>
+  <p id="text"></p>
+  <h3>Context:</h3>
+  <pre id="context"></pre>
+
+  <script>
+    fetch('daily.json')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('date').textContent = `Date: ${data.date}`;
+        document.getElementById('reference').textContent = data.reference;
+        document.getElementById('text').textContent = data.text;
+        document.getElementById('context').textContent = data.context;
+      })
+      .catch(error => {
+        document.body.innerHTML = "<h2>Error loading daily verse. Make sure daily.json exists and is valid.</h2>";
+        console.error("Error loading JSON:", error);
+      });
+  </script>
+</body>
+</html>
