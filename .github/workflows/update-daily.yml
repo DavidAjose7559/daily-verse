@@ -34,4 +34,5 @@ jobs:
           git config user.email "github-actions@github.com"
           git add daily.js
           git commit -m "🔁 Auto-update daily verse" || echo "No changes to commit"
-          git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} HEAD:main
+          git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git HEAD:main
+
