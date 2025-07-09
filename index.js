@@ -1,10 +1,11 @@
-require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs');
 const { OpenAI } = require('openai');
 
-// Initialize OpenAI
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Initialize OpenAI using secret from GitHub Actions
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Verse map: New Testament books → number of verses per chapter
 const verseMap = {
@@ -108,7 +109,7 @@ ${verse} - "${text}"`;
       context: contextHTML
     };
 
-    // Write to daily.js instead of JSON
+    // Write to daily.js
     fs.writeFileSync(
       'daily.js',
       `const dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`
