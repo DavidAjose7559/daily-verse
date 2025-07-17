@@ -26,6 +26,12 @@
     document.getElementById('text').textContent = dailyVerse.text;
     document.getElementById('context').innerHTML = dailyVerse.context;
   </script>
+<script>
+  // Reload the page every 60 seconds (same interval as verse updates)
+  setInterval(() => {
+    location.reload();
+  }, 60000); // 60000 ms = 1 minute
+</script>
 
 </body>
 </html>
