@@ -1,32 +1,23 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
-const { generateVerse } = require('./generate'); // Your verse generator function
+const fs = require('fs');
+const generateVerse = require('./generate'); // function that saves daily.js directly
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSE_PATH = path.join(__dirname, 'public', 'daily.js');
 
-function generateAndSaveVerse() {
-  const verseData = generateVerse(); // Assuming this returns a JS object
-  const jsContent = `window.dailyVerse = ${JSON.stringify(verseData)};`;
-
-  fs.writeFileSync(VERSE_PATH, jsContent);
-  console.log('✅ New verse generated and saved');
-}
-
-// Make sure "public" folder exists
+// Ensure "public" folder exists before generating
 fs.mkdirSync(path.join(__dirname, 'public'), { recursive: true });
 
-// Generate once on startup
-generateAndSaveVerse();
+// Generate verse on startup
+generateVerse();
 
-// Serve static files like daily.js
+// Serve static files (like daily.js) from "public"
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Optional: A health route
+// Optional health check route
 app.get('/', (_, res) => {
-  res.send('Daily Verse Service is running.');
+  res.send('📖 Daily Verse Service is running.');
 });
 
 app.listen(PORT, () => {
