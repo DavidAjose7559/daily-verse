@@ -87,6 +87,7 @@ async function generateDailyVerse() {
     context
   };
 
+  fs.mkdirSync(path.join(process.cwd(), 'public'), { recursive: true });
   const jsContent = `window.dailyVerse = ${JSON.stringify(verse, null, 2)};`;
   const outputPath = path.join(process.cwd(), 'public', 'daily.js');
   fs.writeFileSync(outputPath, jsContent);
