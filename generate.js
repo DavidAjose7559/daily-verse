@@ -95,3 +95,7 @@ async function generateDailyVerse() {
 }
 
 module.exports = generateDailyVerse;
+
+if (require.main === module) {
+  generateDailyVerse();
+}
