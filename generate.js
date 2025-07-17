@@ -68,6 +68,7 @@ Also identify 1–2 key Greek or Hebrew words. For each, show:
 - A short meaning
 
 Respond in clean HTML using <p>, <strong>, <ul>, <li>, and <em> tags.
+Do NOT wrap the output in Markdown code blocks or triple quotes.
 Avoid personal opinions or life application. This is to help memorize and quote the verse accurately.
 
 ${reference} - "${text}"`;
