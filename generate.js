@@ -8,7 +8,7 @@ const dailyVerse = {
   context: "Jesus is speaking to Nicodemus about being born again. This verse highlights God's love and the promise of eternal life to those who believe."
 };
 
-const outputPath = path.join(__dirname, 'public', 'daily.js');
+const outputPath = path.join(__dirname, 'daily.js');
 const jsContent = `window.dailyVerse = ${JSON.stringify(dailyVerse, null, 2)};`;
 
 fs.writeFileSync(outputPath, jsContent);
