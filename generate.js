@@ -88,7 +88,7 @@ async function generateDailyVerse() {
   };
 
   const jsContent = `window.dailyVerse = ${JSON.stringify(verse, null, 2)};`;
-  const outputPath = path.join(__dirname, 'public', 'daily.js');
+  const outputPath = path.join(process.cwd(), 'public', 'daily.js');
   fs.writeFileSync(outputPath, jsContent);
 
   console.log('✅ Verse generated and saved to public/daily.js');
