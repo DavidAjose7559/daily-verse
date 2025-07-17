@@ -12,6 +12,11 @@ fs.mkdirSync(path.join(__dirname, 'public'), { recursive: true });
 // Generate verse on startup
 generateVerse();
 
+// Run every 1 minute (for testing purposes)
+setInterval(() => {
+  generateVerse();
+}, 60 * 1000); // 60,000 ms = 1 min
+
 // Serve static files (like daily.js) from "public"
 app.use(express.static(path.join(__dirname, 'public')));
 
