@@ -51,11 +51,18 @@ async function fetchVerseText(reference) {
 }
 
 async function generateContext(reference, text) {
-  const prompt = `Explain this Bible verse using only the biblical context. Be concise (max 3 short paragraphs). Include:
+  const prompt = `You are given a Bible verse and its text. First, check if this verse is too short or isolated (e.g., "Jesus wept") and would not make sense when read alone.
+
+If so:
+- Either extend it by adding the verse(s) before or after it to provide enough context.
+- Or ignore it and pick another random Bible verse that makes more sense on its own.
+
+Then explain the final verse using only biblical context — include:
 - Pretext (what comes before)
 - Context (surrounding verse)
 - Post-text (what follows)
-Also, identify 1–2 key Greek words (or Hebrew for OT), showing:
+
+Also identify 1–2 key Greek or Hebrew words. For each, show:
 - The English word
 - The original word
 - A short meaning
