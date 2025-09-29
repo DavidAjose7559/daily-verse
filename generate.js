@@ -1,3 +1,4 @@
+// generate.js
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -83,25 +84,29 @@ ${reference} - "${text}"`;
 }
 
 async function generateDailyVerse() {
-  const reference = getRandomVerseReference();
-  const text = await fetchVerseText(reference);
-  const context = await generateContext(reference, text);
-  const date = new Date().toISOString().split('T')[0];
+  try {
+    const reference = getRandomVerseReference();
+    const text = await fetchVerseText(reference);
+    const context = await generateContext(reference, text);
+    const date = new Date().toISOString().split('T')[0];
 
-  const verse = { date, reference, text, context };
+    const verse = { date, reference, text, context };
 
-  // ensure public dir
-  const publicDir = path.join(process.cwd(), 'public');
-  fs.mkdirSync(publicDir, { recursive: true });
+    // ensure public dir exists
+    const publicDir = path.join(process.cwd(), 'public');
+    fs.mkdirSync(publicDir, { recursive: true });
 
-  // 1) existing JS global (kept for backward-compat)
-  const jsContent = `window.dailyVerse = ${JSON.stringify(verse, null, 2)};`;
-  fs.writeFileSync(path.join(publicDir, 'daily.js'), jsContent);
+    // 1) Keep existing JS global for backward compatibility
+    const jsContent = `window.dailyVerse = ${JSON.stringify(verse, null, 2)};`;
+    fs.writeFileSync(path.join(publicDir, 'daily.js'), jsContent);
 
-  // 2) NEW: JSON payload for /api/daily
-  fs.writeFileSync(path.join(publicDir, 'daily.json'), JSON.stringify(verse, null, 2));
+    // 2) NEW: JSON payload so /api/daily can serve it
+    fs.writeFileSync(path.join(publicDir, 'daily.json'), JSON.stringify(verse, null, 2));
 
-  console.log('✅ Verse generated and saved to public/daily.js and public/daily.json');
+    console.log('✅ Saved public/daily.js and public/daily.json');
+  } catch (err) {
+    console.error('❌ Failed to generate daily verse:', err?.message || err);
+  }
 }
 
 module.exports = generateDailyVerse;
