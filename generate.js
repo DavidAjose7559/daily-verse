@@ -88,19 +88,20 @@ async function generateDailyVerse() {
   const context = await generateContext(reference, text);
   const date = new Date().toISOString().split('T')[0];
 
-  const verse = {
-    date,
-    reference,
-    text,
-    context
-  };
+  const verse = { date, reference, text, context };
 
-  fs.mkdirSync(path.join(process.cwd(), 'public'), { recursive: true });
+  // ensure public dir
+  const publicDir = path.join(process.cwd(), 'public');
+  fs.mkdirSync(publicDir, { recursive: true });
+
+  // 1) existing JS global (kept for backward-compat)
   const jsContent = `window.dailyVerse = ${JSON.stringify(verse, null, 2)};`;
-  const outputPath = path.join(process.cwd(), 'public', 'daily.js');
-  fs.writeFileSync(outputPath, jsContent);
+  fs.writeFileSync(path.join(publicDir, 'daily.js'), jsContent);
 
-  console.log('✅ Verse generated and saved to public/daily.js');
+  // 2) NEW: JSON payload for /api/daily
+  fs.writeFileSync(path.join(publicDir, 'daily.json'), JSON.stringify(verse, null, 2));
+
+  console.log('✅ Verse generated and saved to public/daily.js and public/daily.json');
 }
 
 module.exports = generateDailyVerse;
