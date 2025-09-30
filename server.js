@@ -51,7 +51,7 @@ app.use((req, res, next) => {
 // --- static files (/daily.js, /daily.json, /style.css, etc.) ---
 app.use(express.static(PUBLIC_DIR));
 app.get('/', (req, res) => {
-  res.redirect('https://davidaajose7559.github.io/daily-verse/');
+  res.redirect('https://davidajose7559.github.io/daily-verse/');
 });
 
 
