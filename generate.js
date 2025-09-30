@@ -1,3 +1,23 @@
+const crypto = require('crypto');
+const { DateTime } = require('luxon'); // npm i luxon
+
+function pickDailyReferenceFor(dateISO) {
+  // stable hash from date like "2025-09-29"
+  const h = crypto.createHash('sha256').update(dateISO).digest();
+  const books = Object.keys(verseMap);
+
+  const bookIdx = h[0] % books.length;
+  const book = books[bookIdx];
+
+  const chapterIdx = h[1] % verseMap[book].length;  // 0-based
+  const chapter = chapterIdx + 1;
+
+  const maxVerses = verseMap[book][chapterIdx];
+  const verse = (h[2] % maxVerses) + 1;
+
+  return `${book} ${chapter}:${verse}`;
+}
+
 // generate.js
 const fs = require('fs');
 const path = require('path');
@@ -85,10 +105,12 @@ ${reference} - "${text}"`;
 
 async function generateDailyVerse() {
   try {
-    const reference = getRandomVerseReference();
+    const today = DateTime.now().setZone('America/Toronto').toISODate();
+    const reference = pickDailyReferenceFor(today);
+    const date = today;
     const text = await fetchVerseText(reference);
     const context = await generateContext(reference, text);
-    const date = new Date().toISOString().split('T')[0];
+    
 
     const verse = { date, reference, text, context };
 
