@@ -1,92 +1,146 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Daily Verse</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <main class="container">
-    <h1 id="reference">Daily Verse</h1>
-    <div class="meta">
-      <span id="date">Date: —</span>
-      <span aria-hidden="true"> · </span>
-      <span id="translation">WEB</span>
-    </div>
+    <header class="page-header">
+      <h1 id="reference" class="title">Daily Verse</h1>
+      <div class="meta">
+        <span id="date">Date: —</span>
+        <span class="dot">·</span>
+        <span id="translation">WEB</span>
+      </div>
+      <p id="text" class="verse-text"></p>
 
-    <p id="text"></p>
+      <div class="actions">
+        <button id="copyBtn" class="btn">Copy Verse</button>
+        <button id="shareBtn" class="btn btn-ghost">Share</button>
+      </div>
+    </header>
 
-    <div class="actions">
-      <button id="copyBtn" type="button">📋 Copy Verse</button>
-      <button id="shareBtn" type="button">🔗 Share</button>
-    </div>
+    <article id="context" class="card" aria-live="polite"></article>
 
-    <section id="context" class="context" aria-live="polite"></section>
-
-    <!-- dev-only: remove in prod -->
-   // <pre id="debug"></pre>
+    <!-- Dev-only debug (keep hidden or remove later) -->
+    <pre id="debug" style="display:none;"></pre>
   </main>
 
   <script>
-  // always fetch from Render API
-  const API_BASE = 'https://daily-verse-viewer.onrender.com';
+    // ==============================
+    // CONFIG: API lives on Render
+    // ==============================
+    const API_BASE = 'https://daily-verse-viewer.onrender.com';
 
-  const els = {
-    date:        document.getElementById('date'),
-    reference:   document.getElementById('reference'),
-    text:        document.getElementById('text'),
-    context:     document.getElementById('context'),
-    translation: document.getElementById('translation'),
-    copyBtn:     document.getElementById('copyBtn'),
-    shareBtn:    document.getElementById('shareBtn'),
-    debug:       document.getElementById('debug'),
-  };
+    // ==============================
+    // DOM refs
+    // ==============================
+    const els = {
+      date:        document.getElementById('date'),
+      reference:   document.getElementById('reference'),
+      text:        document.getElementById('text'),
+      context:     document.getElementById('context'),
+      translation: document.getElementById('translation'),
+      copyBtn:     document.getElementById('copyBtn'),
+      shareBtn:    document.getElementById('shareBtn'),
+      debug:       document.getElementById('debug'),
+    };
 
-  function stripScripts(html) {
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    div.querySelectorAll('script').forEach(s => s.remove());
-    return div.innerHTML;
-  }
-
-  async function loadDaily() {
-    try {
-      const res = await fetch(`${API_BASE}/api/daily`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const d = await res.json();
-
-      els.date.textContent = `Date: ${d.date || '—'}`;
-      els.reference.textContent = d.reference || 'Daily Verse';
-      els.text.textContent = d.text || '';
-      els.translation.textContent = d.translation || 'WEB';
-      els.context.innerHTML = d.context ? stripScripts(d.context) : '';
-
-      // optional debug
-      // if (els.debug) els.debug.textContent = JSON.stringify(d.rating, null, 2);
-    } catch (e) {
-      if (els.debug) els.debug.textContent = `Not ready (${e.message})`;
+    // ==============================
+    // Minimal sanitization
+    // ==============================
+    function stripScripts(html) {
+      const div = document.createElement('div');
+      div.innerHTML = html || '';
+      div.querySelectorAll('script').forEach(s => s.remove());
+      return div.innerHTML;
     }
-  }
 
-  els.copyBtn?.addEventListener('click', async () => {
-    const content = `${els.reference.textContent} — ${els.text.textContent}`;
-    try { await navigator.clipboard.writeText(content); alert('Verse copied!'); }
-    catch { alert('Copy failed'); }
-  });
+    // ==============================
+    // Fetch + render
+    // ==============================
+    async function loadDaily() {
+      try {
+        const res = await fetch(`${API_BASE}/api/daily`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
 
-  els.shareBtn?.addEventListener('click', async () => {
-    const content = `${els.reference.textContent} — ${els.text.textContent}`;
-    if (navigator.share) {
-      try { await navigator.share({ title: 'Daily Verse', text: content, url: location.href }); } catch {}
-    } else {
-      alert('Sharing not supported');
+        els.date.textContent = `Date: ${d.date || '—'}`;
+        els.reference.textContent = d.reference || 'Daily Verse';
+        els.text.textContent = d.text || '';
+        els.translation.textContent = d.translation || 'WEB';
+        els.context.innerHTML = stripScripts(d.context);
+
+        // Uncomment for debugging:
+        // els.debug.style.display = 'block';
+        // els.debug.textContent = JSON.stringify(d.rating, null, 2);
+      } catch (e) {
+        if (els.debug) {
+          els.debug.style.display = 'block';
+          els.debug.textContent = `Not ready (${e.message})`;
+        }
+      }
     }
-  });
 
-  // load immediately + poll every minute while testing
-  loadDaily();
-  setInterval(loadDaily, 60_000);
-</script>
+    // ==============================
+    // Copy & Share
+    // ==============================
+    els.copyBtn.addEventListener('click', async () => {
+      const content = `${els.reference.textContent} — ${els.text.textContent}`;
+      try {
+        await navigator.clipboard.writeText(content);
+        alert('Verse copied!');
+      } catch {
+        alert('Copy failed');
+      }
+    });
+
+    els.shareBtn.addEventListener('click', async () => {
+      const content = `${els.reference.textContent} — ${els.text.textContent}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Daily Verse', text: content, url: location.href });
+        } catch { /* user cancelled or share failed */ }
+      } else {
+        alert('Sharing not supported in this browser');
+      }
+    });
+
+    // ==============================
+    // Refresh at next midnight (Toronto)
+    // ==============================
+    function msUntilNextMidnightToronto() {
+      // Use Intl to get Toronto wall-clock date/time parts
+      const now = new Date();
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      });
+      const parts = Object.fromEntries(fmt.formatToParts(now).map(p => [p.type, p.value]));
+      // Build a Date from those parts (as if local); we only need the delta to next midnight
+      const torontoNow = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`);
+      const next = new Date(torontoNow);
+      next.setDate(next.getDate() + 1);
+      next.setHours(0, 0, 0, 0);
+      return next - torontoNow;
+    }
+
+    // First load immediately
+    loadDaily();
+
+    // Refresh once at next midnight, then every 24h
+    setTimeout(() => {
+      loadDaily();
+      setInterval(loadDaily, 24 * 60 * 60 * 1000);
+    }, msUntilNextMidnightToronto());
+  </script>
 </body>
 </html>
