@@ -1,9 +1,9 @@
-// server.js — prod hardening + midnight schedule (America/Toronto)
+// server.js — prod hardening + midnight schedule + last-good fallback + redirect to Pages
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { DateTime } = require('luxon');
-const generateVerse = require('./generate'); // writes public/daily.js + public/daily.json
+const generateVerse = require('./generate'); // writes public/daily.json + last-good.json + daily.js
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,7 +33,7 @@ app.use((req, res, next) => {
 
 // CORS (relaxed while testing; tighten to your domain in prod if you like)
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');      // loosened for dev
+  res.setHeader('Access-Control-Allow-Origin', '*'); // loosened for dev / cross-origin from GitHub Pages
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   next();
 });
@@ -50,26 +50,59 @@ app.use((req, res, next) => {
 
 // --- static files (/daily.js, /daily.json, /style.css, etc.) ---
 app.use(express.static(PUBLIC_DIR));
-app.get('/', (req, res) => {
-  res.redirect('https://davidajose7559.github.io/daily-verse/');
-});
 
-
-// --- JSON API for the client ---
+// --- JSON API for the client (with last-good fallback) ---
 app.get('/api/daily', (req, res) => {
   try {
-    const jsonPath = path.join(PUBLIC_DIR, 'daily.json');
-    const data = fs.readFileSync(jsonPath, 'utf8');
-    res.type('application/json').send(data); // no-store already set above
-  } catch (err) {
+    const dailyPath = path.join(PUBLIC_DIR, 'daily.json');
+    const lastGoodPath = path.join(PUBLIC_DIR, 'last-good.json');
+
+    if (fs.existsSync(dailyPath)) {
+      const data = fs.readFileSync(dailyPath, 'utf8');
+      res.type('application/json').send(data);
+      return;
+    }
+
+    if (fs.existsSync(lastGoodPath)) {
+      const data = fs.readFileSync(lastGoodPath, 'utf8');
+      res.setHeader('X-Fallback', 'last-good');
+      res.type('application/json').send(data);
+      return;
+    }
+
     res.status(503).json({ error: 'Daily verse not ready yet.' });
+  } catch (err) {
+    try {
+      const lastGoodPath = path.join(PUBLIC_DIR, 'last-good.json');
+      if (fs.existsSync(lastGoodPath)) {
+        const data = fs.readFileSync(lastGoodPath, 'utf8');
+        res.setHeader('X-Fallback', 'last-good-on-error');
+        res.type('application/json').send(data);
+        return;
+      }
+    } catch {}
+    res.status(500).json({ error: 'Server error.' });
   }
 });
 
-// --- simple health check (optional) ---
-app.get('/healthz', (req, res) => {
-  res.type('text/plain').send('ok');
+// optional status/introspection
+app.get('/api/status', (_req, res) => {
+  const dailyPath = path.join(PUBLIC_DIR, 'daily.json');
+  const lastGoodPath = path.join(PUBLIC_DIR, 'last-good.json');
+  res.json({
+    hasDaily: fs.existsSync(dailyPath),
+    hasLastGood: fs.existsSync(lastGoodPath),
+    nodeEnv: process.env.NODE_ENV || 'development',
+  });
 });
+
+// --- redirect root to your GitHub Pages frontend (Option A you picked) ---
+app.get('/', (_req, res) => {
+  res.redirect('https://davidaajose7559.github.io/daily-verse/');
+});
+
+// --- health check ---
+app.get('/healthz', (_req, res) => res.type('text/plain').send('ok'));
 
 // --- scheduling helpers ---
 function msUntilNextMidnightToronto() {
@@ -78,7 +111,7 @@ function msUntilNextMidnightToronto() {
   return next.diff(now).as('milliseconds');
 }
 
-// --- generate on boot ---
+// --- generate on boot + schedule ---
 (async function boot() {
   try {
     await generateVerse();
