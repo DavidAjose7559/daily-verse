@@ -1,4 +1,34 @@
-<script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Verse</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1 id="reference">Daily Verse</h1>
+    <div class="meta">
+      <span id="date">Date: —</span>
+      <span aria-hidden="true"> · </span>
+      <span id="translation">WEB</span>
+    </div>
+
+    <p id="text"></p>
+
+    <div class="actions">
+      <button id="copyBtn" type="button">📋 Copy Verse</button>
+      <button id="shareBtn" type="button">🔗 Share</button>
+    </div>
+
+    <section id="context" class="context" aria-live="polite"></section>
+
+    <!-- dev-only: remove in prod -->
+   // <pre id="debug"></pre>
+  </main>
+
+  <script>
   // CHANGE 1: make API base portable (same-origin)
   const API_BASE = ''; // was 'https://daily-verse-viewer.onrender.com'
 
@@ -64,3 +94,5 @@
   loadDaily();
   setInterval(loadDaily, 60_000);
 </script>
+</body>
+</html>
