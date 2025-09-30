@@ -159,6 +159,7 @@ Return clean HTML with EXACTLY these sections (no inline styles, no scripts):
 <ul>
   <li><strong>Pretext</strong>: What happens immediately before (1–3 verses).</li>
   <li><strong>Context</strong>: What this verse is saying and why it matters.</li>
+  <li><strong>Cultural Context</strong>: <em>If applicable</em>, explain cultural practices in Bible times that differ from today (e.g., "holy kiss"), and clarify the timeless principle for believers now.</li>
   <li><strong>Post-text</strong>: What happens right after (1–3 verses).</li>
 </ul>
 
