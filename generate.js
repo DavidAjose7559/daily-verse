@@ -1,18 +1,58 @@
 // generate.js
+// -------------------------------------------------------------
+// Generates the "daily verse" payload, with doctrine guardrails
+// and an edification filter. Writes: public/daily.json + daily.js
+//
+// Env: OPENAI_API_KEY
+// Deps: axios, luxon, openai
+//
+// Deterministic per calendar day in America/Toronto.
+// If a candidate isn't suitable even with context, we bump an offset
+// and try the next deterministic candidate. As a last resort, we
+// fall back to a safe whitelist verse.
+
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const crypto = require('crypto');
+const { DateTime } = require('luxon');
 const { OpenAI } = require('openai');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// --- (optional) quick blocklist for verses you never want ---
+// ---------- Doctrine guardrails ----------
+const DOCTRINE_GUARDRAILS = `
+You must align with these beliefs while staying biblically faithful and contextual:
+- Scripture is interpreted in context (book, author, audience, covenant), not proof-texted.
+- The Trinity: Father, Son, and Holy Spirit—co-equal, co-eternal.
+- The gifts of the Spirit continue today; they have not ceased. Speaking in tongues is a valid gift.
+- Explanations should edify, encourage obedience to Christ, and avoid sensationalism.
+- No denial of the Spirit's present work; no cessationism; no contradictions to the above.
+`;
+
+// ---------- Quick blocklist (add more as you encounter them) ----------
 const BLOCKLIST = new Set([
-  "Matthew 27:5",
-  // add more as needed
+  "Matthew 27:5",     // Judas’ suicide
+  "Judges 19:25",
+  "2 Samuel 13:14",
 ]);
 
-// --- your existing verse map (kept exactly as you had it) ---
+// ---------- Friendly fallback verses (safe if everything else fails) ----------
+const WHITELIST_DEFAULTS = [
+  "Philippians 4:6-7",
+  "Proverbs 3:5-6",
+  "Romans 8:28",
+  "Psalm 23:1-4",
+  "Psalm 91:1-2",
+  "Psalm 121:1-2",
+  "Isaiah 41:10",
+  "Matthew 11:28-30",
+  "John 3:16",
+  "Ephesians 3:20",
+  "Joshua 1:9",
+];
+
+// ---------- Verse map (NT set you had + Psalms added) ----------
 const verseMap = {
   "Matthew": [25, 23, 17, 25, 48, 34, 29, 34, 38, 42, 30, 50, 58, 36, 39, 28, 27, 35, 30, 34, 46, 46, 39, 51, 46, 75, 66, 20],
   "Mark": [45, 28, 35, 41, 43, 56, 37, 38, 50, 52, 33, 44, 37, 72, 47, 20],
@@ -39,26 +79,50 @@ const verseMap = {
   "1 John": [10, 29, 24, 21, 21],
   "2 John": [13],
   "3 John": [15],
-  "Jude": [25]
+  "Jude": [25],
+
+  // ✅ Psalms (150 chapters)
+  "Psalms": [
+    6, 12, 8, 8, 12, 10, 17, 9, 20, 18, 7, 8, 6, 7, 5, 11, 15, 50, 14, 9,
+    13, 31, 6, 10, 22, 12, 14, 9, 11, 12, 24, 11, 22, 22, 28, 12, 40, 22,
+    13, 17, 13, 11, 5, 26, 17, 11, 9, 14, 20, 23, 19, 9, 6, 7, 23, 13, 11,
+    11, 17, 12, 8, 12, 11, 10, 13, 20, 7, 35, 36, 5, 24, 20, 28, 23, 10, 12,
+    20, 72, 13, 19, 16, 8, 18, 12, 13, 17, 7, 18, 52, 17, 16, 15, 5, 23, 11,
+    13, 12, 9, 9, 5, 8, 28, 22, 35, 45, 48, 43, 13, 31, 7, 10, 10, 9, 8, 18,
+    19, 2, 29, 176, 7, 8, 9, 4, 8, 5, 6, 5, 6, 8, 8, 3, 18, 3, 3, 21, 26, 9,
+    8, 24, 14, 10, 8, 12, 15, 21, 10, 20, 14, 9, 6
+  ]
 };
 
-function getRandomVerseReference() {
+// ---------- Deterministic picker ----------
+function pickReferenceFor(dateISO, offset = 0) {
+  const h = crypto.createHash('sha256').update(`${dateISO}#${offset}`).digest();
+
   const books = Object.keys(verseMap);
-  const book = books[Math.floor(Math.random() * books.length)];
-  const chapterIndex = Math.floor(Math.random() * verseMap[book].length);
+  const book = books[h[0] % books.length];
+
+  const chapterIndex = h[1] % verseMap[book].length; // 0-based
   const chapter = chapterIndex + 1;
+
   const maxVerses = verseMap[book][chapterIndex];
-  const verse = Math.floor(Math.random() * maxVerses) + 1;
+  const verse = (h[2] % maxVerses) + 1;
+
   return `${book} ${chapter}:${verse}`;
 }
 
+// ---------- Bible API fetch ----------
 async function fetchVerseText(reference) {
+  // Bible API defaults to WEB if not specified; we'll be explicit.
   const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=web`;
-  const response = await axios.get(url, { timeout: 15000 });
-  return response.data.text.trim();
+  try {
+    const response = await axios.get(url, { timeout: 15000 });
+    return String(response.data.text || '').trim();
+  } catch {
+    return null;
+  }
 }
 
-// ---- NEW: suitability classifier (strict JSON) ----
+// ---------- Suitability classifier (strict JSON) ----------
 async function classifySuitability(reference, text) {
   const prompt = `
 Return STRICT JSON ONLY (no markdown).
@@ -71,25 +135,24 @@ Schema:
 {"safe": true|false, "category": "edifying|neutral|non_edifying", "reason": "short phrase"}
 `.trim();
 
-  const chat = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    temperature: 0,
-    max_tokens: 120,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: 'You are a strict JSON classifier.' },
-      { role: 'user', content: `${prompt}\n\n${reference}\n"${text}"` }
-    ],
-  });
-
   try {
+    const chat = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0,
+      max_tokens: 120,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: 'You are a strict JSON classifier.' },
+        { role: 'user', content: `${prompt}\n\n${reference}\n"${text}"` }
+      ],
+    });
     return JSON.parse(chat.choices[0].message.content);
   } catch {
-    return { safe: false, category: 'non_edifying', reason: 'parse_error' };
+    return { safe: false, category: 'non_edifying', reason: 'classifier_error' };
   }
 }
 
-// ---- your explainer, kept — but “explain only” ----
+// ---------- Explainer (HTML), guarded by doctrine ----------
 async function generateContext(reference, text) {
   const prompt = `Explain this Bible verse using only biblical context. Keep it pastoral, faithful, concise.
 Return clean HTML with EXACTLY these sections (no inline styles, no scripts):
@@ -120,62 +183,114 @@ Text: "${text}"`;
 
   const chat = await openai.chat.completions.create({
     model: 'gpt-4o',
-    messages: [{ role: 'user', content: prompt }],
     temperature: 0.7,
+    messages: [
+      { role: 'system', content: DOCTRINE_GUARDRAILS },
+      { role: 'user', content: prompt }
+    ],
   });
 
   return chat.choices[0].message.content.trim();
 }
 
+// ---------- Optional: post-generation doctrine audit/fix ----------
+async function validateTheology(html) {
+  const prompt = `
+Return STRICT JSON ONLY. Check the HTML explanation for alignment with our beliefs.
+Schema: {"compliant": true|false, "reason":"short phrase", "fix":"<html if correction is needed>"}
+If anything conflicts (e.g., denies Trinity or says gifts have ceased), set compliant=false and provide a corrected "fix".
+`.trim();
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: DOCTRINE_GUARDRAILS },
+        { role: 'user', content: `${prompt}\n\n${html}` }
+      ],
+    });
+    return JSON.parse(resp.choices[0].message.content);
+  } catch {
+    return { compliant: true, reason: 'audit_skipped' };
+  }
+}
+
+// ---------- Main ----------
 async function generateDailyVerse() {
   try {
     const MAX_TRIES = 20;
-    let reference, text, rating;
 
-    // loop: pick -> fetch -> classify; if unsafe, pick again
-    for (let i = 0; i < MAX_TRIES; i++) {
-      reference = getRandomVerseReference();
-      if (BLOCKLIST.has(reference)) continue;
+    // Stable local date for the whole day
+    const today = DateTime.now().setZone('America/Toronto').toISODate();
 
-      text = await fetchVerseText(reference);
-      if (!text) continue;
+    let reference = null;
+    let text = null;
+    let rating = null;
 
-      rating = await classifySuitability(reference, text);
-      if (rating.safe) break;
-      reference = null; // force another try
+    // Deterministic candidates for *today*, try offsets until one is safe
+    for (let offset = 0; offset < MAX_TRIES; offset++) {
+      const cand = pickReferenceFor(today, offset);
+      if (BLOCKLIST.has(cand)) continue;
+
+      const t = await fetchVerseText(cand);
+      if (!t) continue;
+
+      const r = await classifySuitability(cand, t);
+      if (r.safe) {
+        reference = cand;
+        text = t;
+        rating = r;
+        break;
+      }
     }
 
-    // if we somehow failed MAX_TRIES times, fall back to a friendly default
+    // Fallback if none passed
     if (!reference) {
-      reference = "Philippians 4:6-7";
-      text = await fetchVerseText(reference);
-      rating = { safe: true, category: 'edifying', reason: 'fallback' };
+      reference = WHITELIST_DEFAULTS[crypto.randomBytes(1)[0] % WHITELIST_DEFAULTS.length];
+      text = await fetchVerseText(reference) || reference;
+      rating = { safe: true, category: 'edifying', reason: 'fallback_whitelist' };
     }
 
-    const context = await generateContext(reference, text);
-    const date = new Date().toISOString().split('T')[0];
+    // Generate context (HTML) with guardrails
+    const contextRaw = await generateContext(reference, text);
 
-    const verse = { date, reference, text, context, rating, translation: 'WEB' };
+    // Optional doctrine audit
+    const audit = await validateTheology(contextRaw);
+    const context = audit?.compliant === false && audit.fix ? audit.fix : contextRaw;
 
-    // ensure public dir exists
+    const payload = {
+      date: today,
+      reference,
+      text,
+      context,
+      rating,            // useful while testing; hide on UI if you want
+      translation: 'WEB' // Bible API default used above
+    };
+
+    // Ensure /public exists
     const publicDir = path.join(process.cwd(), 'public');
     fs.mkdirSync(publicDir, { recursive: true });
 
-    // 1) JS global (backward compatibility)
-    const jsContent = `window.dailyVerse = ${JSON.stringify(verse, null, 2)};`;
-    fs.writeFileSync(path.join(publicDir, 'daily.js'), jsContent);
+    // Write JSON
+    fs.writeFileSync(path.join(publicDir, 'daily.json'), JSON.stringify(payload, null, 2));
 
-    // 2) JSON payload for /api/daily
-    fs.writeFileSync(path.join(publicDir, 'daily.json'), JSON.stringify(verse, null, 2));
+    // Write legacy JS global (if your page still consumes it)
+    fs.writeFileSync(
+      path.join(publicDir, 'daily.js'),
+      `window.dailyVerse = ${JSON.stringify(payload, null, 2)};`
+    );
 
-    console.log(`✅ ${date} | ${reference} | ${rating?.reason || 'ok'}`);
+    console.log(`✅ ${today} | ${reference} | ${rating?.reason || 'ok'}${audit?.compliant === false ? ' | doctrine_fix_applied' : ''}`);
   } catch (err) {
-    console.error('❌ Failed to generate daily verse:', err?.message || err);
+    console.error('❌ Failed to generate daily verse:', err?.stack || err);
   }
 }
 
 module.exports = generateDailyVerse;
 
+// Allow "node generate.js" to run it once locally
 if (require.main === module) {
   generateDailyVerse();
 }
