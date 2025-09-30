@@ -1,62 +1,83 @@
 /* Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Crimson+Text:ital@0;1&display=swap');
 
-body {
-  font-family: 'Inter', sans-serif;
-  background-color: #f4f6f8;
-  margin: 0;
-  padding: 0;
-  color: #1e1e1e;
+/* Base */
+:root{
+  --bg: #f4f6f8;
+  --text: #1e1e1e;
+  --brand: #2b6cb0;
+  --muted: #666;
+  --card: #ffffff;
+  --ring: rgba(43,108,176,.35);
+  --border: #eee;
 }
 
-.container {
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg);
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Container */
+main, .container {
   max-width: 760px;
   margin: 60px auto;
-  background-color: #ffffff;
+  background-color: var(--card);
   padding: 40px 30px;
   border-radius: 12px;
   box-shadow: 0 0 14px rgba(0, 0, 0, 0.04);
   line-height: 1.8;
 }
 
+/* Heading */
 h1 {
   font-size: 2rem;
-  color: #2b6cb0;
+  color: var(--brand);
   display: flex;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin: 0 0 .5rem 0;
 }
 
-.date {
-  color: #666;
-  font-size: 0.9rem;
+/* Meta (date + translation) */
+.meta, .date {
+  color: var(--muted);
+  font-size: 0.95rem;
   margin-bottom: 20px;
 }
 
-h2 {
-  font-size: 1.4rem;
-  color: #333;
-  margin-top: 0.4rem;
-}
-
-p {
+/* Verse text */
+p, #text {
   font-size: 1.1rem;
   font-family: 'Crimson Text', serif;
   color: #222;
+  margin-top: 0;
   margin-bottom: 1.5rem;
+}
+
+/* Section headings from explainer */
+h2 {
+  font-size: 1.4rem;
+  color: #333;
+  margin: .4rem 0;
 }
 
 h3 {
   font-size: 1.2rem;
   color: #444;
-  margin-top: 2.2rem;
+  margin-top: 2.0rem;
   margin-bottom: 1rem;
 }
 
-/* NEW: Styled context block */
-.context {
+/* Context block (apply to both class and id) */
+.context, #context {
   background-color: #fefefe;
-  border: 1px solid #eee;
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
   line-height: 1.9;
@@ -65,26 +86,26 @@ h3 {
   color: #2a2a2a;
 }
 
-.context h4 {
+.context h4, #context h4 {
   font-size: 1.1rem;
-  color: #2b6cb0;
-  margin-bottom: 0.3rem;
+  color: var(--brand);
+  margin-bottom: .3rem;
 }
 
-.context p {
+.context p, #context p {
   margin-bottom: 1.2rem;
 }
 
-.context ul {
+.context ul, #context ul {
   padding-left: 1.2rem;
-  margin-bottom: 1.5rem;
+  margin: 0 0 1.5rem 0;
 }
 
-.context li {
-  margin-bottom: 0.8rem;
+.context li, #context li {
+  margin-bottom: .8rem;
 }
 
-.context em {
+.context em, #context em {
   background-color: #fff8dc;
   padding: 2px 4px;
   border-radius: 4px;
@@ -93,17 +114,77 @@ h3 {
   color: #6b4226;
 }
 
-.context strong {
-  color: #2b6cb0;
+.context strong, #context strong {
+  color: var(--brand);
 }
 
+/* Actions: Copy / Share */
+.actions {
+  display: flex;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 2rem;
+}
+
+.actions button {
+  padding: .6rem .95rem;
+  border-radius: .6rem;
+  border: 1px solid #ddd;
+  background: #f8f8f8;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, transform .02s ease-in-out;
+}
+
+.actions button:hover {
+  background: #f1f1f1;
+}
+
+.actions button:active {
+  transform: translateY(1px);
+}
+
+.actions button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+  border-color: var(--brand);
+}
+
+/* Debug (dev only) */
+#debug {
+  opacity: .6;
+  font-size: .82rem;
+  white-space: pre-wrap;
+  background: #fafafa;
+  border: 1px dashed #e5e7eb;
+  padding: .6rem .8rem;
+  border-radius: 8px;
+  margin-top: 1.5rem;
+}
+
+/* Links inside context (if any) */
+a {
+  color: var(--brand);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+/* Responsive */
 @media (max-width: 600px) {
-  .container {
+  main, .container {
     margin: 20px;
     padding: 20px;
   }
 
   h1 {
     font-size: 1.6rem;
+  }
+
+  .actions {
+    gap: .5rem;
+  }
+
+  .actions button {
+    width: 100%;
   }
 }
