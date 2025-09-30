@@ -21,29 +21,27 @@
   <!-- Load the daily verse from your backend -->
   <script src="https://daily-verse-viewer.onrender.com/daily.js"></script>
   <script>
+const RENDER_BASE = 'https://daily-verse-viewer.onrender.com';
+
 async function loadDaily() {
   try {
-    const res = await fetch('/api/daily', { cache: 'no-store' });
+    // If running on GitHub Pages, always call the Render API.
+    const url = `${RENDER_BASE}/api/daily`;
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('Not ready');
     const d = await res.json();
 
-    // update UI
     document.getElementById('date').textContent = `Date: ${d.date}`;
     document.getElementById('reference').textContent = d.reference;
     document.getElementById('text').textContent = d.text;
-
-    // If your model returns HTML, this inserts it. (OK for now while testing)
-    const ctx = document.getElementById('context');
-    ctx.innerHTML = d.context || '';
+    document.getElementById('context').innerHTML = d.context || '';
   } catch (e) {
-    console.warn('Daily verse not ready yet. Retrying…');
+    console.warn('Daily verse not ready yet. Retrying…', e);
   }
 }
 
-// first load
 loadDaily();
-// for testing, poll every minute instead of reloading the whole page
-setInterval(loadDaily, 60_000);
+setInterval(loadDaily, 60_000); // keep this while testing
 </script>
 </body>
 </html>
