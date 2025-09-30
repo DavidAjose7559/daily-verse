@@ -1,15 +1,14 @@
 // generate.js
 // -------------------------------------------------------------
-// Generates the "daily verse" payload, with doctrine guardrails
+// Generates the "daily verse" payload with doctrine guardrails
 // and an edification filter. Writes: public/daily.json + daily.js
 //
 // Env: OPENAI_API_KEY
 // Deps: axios, luxon, openai
 //
 // Deterministic per calendar day in America/Toronto.
-// If a candidate isn't suitable even with context, we bump an offset
-// and try the next deterministic candidate. As a last resort, we
-// fall back to a safe whitelist verse.
+// If a candidate isn't suitable, we bump an offset and try again.
+// As a last resort, fall back to a safe whitelist verse.
 
 const fs = require('fs');
 const path = require('path');
@@ -30,14 +29,14 @@ You must align with these beliefs while staying biblically faithful and contextu
 - No denial of the Spirit's present work; no cessationism; no contradictions to the above.
 `;
 
-// ---------- Quick blocklist (add more as you encounter them) ----------
+// ---------- Quick blocklist ----------
 const BLOCKLIST = new Set([
   "Matthew 27:5",     // Judas’ suicide
   "Judges 19:25",
   "2 Samuel 13:14",
 ]);
 
-// ---------- Friendly fallback verses (safe if everything else fails) ----------
+// ---------- Friendly fallback verses ----------
 const WHITELIST_DEFAULTS = [
   "Philippians 4:6-7",
   "Proverbs 3:5-6",
@@ -80,8 +79,6 @@ const verseMap = {
   "2 John": [13],
   "3 John": [15],
   "Jude": [25],
-
-  // ✅ Psalms (150 chapters)
   "Psalms": [
     6, 12, 8, 8, 12, 10, 17, 9, 20, 18, 7, 8, 6, 7, 5, 11, 15, 50, 14, 9,
     13, 31, 6, 10, 22, 12, 14, 9, 11, 12, 24, 11, 22, 22, 28, 12, 40, 22,
@@ -97,22 +94,17 @@ const verseMap = {
 // ---------- Deterministic picker ----------
 function pickReferenceFor(dateISO, offset = 0) {
   const h = crypto.createHash('sha256').update(`${dateISO}#${offset}`).digest();
-
   const books = Object.keys(verseMap);
   const book = books[h[0] % books.length];
-
-  const chapterIndex = h[1] % verseMap[book].length; // 0-based
+  const chapterIndex = h[1] % verseMap[book].length;
   const chapter = chapterIndex + 1;
-
   const maxVerses = verseMap[book][chapterIndex];
   const verse = (h[2] % maxVerses) + 1;
-
   return `${book} ${chapter}:${verse}`;
 }
 
 // ---------- Bible API fetch ----------
 async function fetchVerseText(reference) {
-  // Bible API defaults to WEB if not specified; we'll be explicit.
   const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=web`;
   try {
     const response = await axios.get(url, { timeout: 15000 });
@@ -122,7 +114,7 @@ async function fetchVerseText(reference) {
   }
 }
 
-// ---------- Suitability classifier (strict JSON) ----------
+// ---------- Suitability classifier ----------
 async function classifySuitability(reference, text) {
   const prompt = `
 Return STRICT JSON ONLY (no markdown).
@@ -193,43 +185,16 @@ Text: "${text}"`;
   return chat.choices[0].message.content.trim();
 }
 
-// ---------- Optional: post-generation doctrine audit/fix ----------
-async function validateTheology(html) {
-  const prompt = `
-Return STRICT JSON ONLY. Check the HTML explanation for alignment with our beliefs.
-Schema: {"compliant": true|false, "reason":"short phrase", "fix":"<html if correction is needed>"}
-If anything conflicts (e.g., denies Trinity or says gifts have ceased), set compliant=false and provide a corrected "fix".
-`.trim();
-
-  try {
-    const resp = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: DOCTRINE_GUARDRAILS },
-        { role: 'user', content: `${prompt}\n\n${html}` }
-      ],
-    });
-    return JSON.parse(resp.choices[0].message.content);
-  } catch {
-    return { compliant: true, reason: 'audit_skipped' };
-  }
-}
-
 // ---------- Main ----------
 async function generateDailyVerse() {
   try {
     const MAX_TRIES = 20;
-
-    // Stable local date for the whole day
     const today = DateTime.now().setZone('America/Toronto').toISODate();
 
     let reference = null;
     let text = null;
     let rating = null;
 
-    // Deterministic candidates for *today*, try offsets until one is safe
     for (let offset = 0; offset < MAX_TRIES; offset++) {
       const cand = pickReferenceFor(today, offset);
       if (BLOCKLIST.has(cand)) continue;
@@ -246,43 +211,33 @@ async function generateDailyVerse() {
       }
     }
 
-    // Fallback if none passed
     if (!reference) {
       reference = WHITELIST_DEFAULTS[crypto.randomBytes(1)[0] % WHITELIST_DEFAULTS.length];
       text = await fetchVerseText(reference) || reference;
       rating = { safe: true, category: 'edifying', reason: 'fallback_whitelist' };
     }
 
-    // Generate context (HTML) with guardrails
-    const contextRaw = await generateContext(reference, text);
-
-    // Optional doctrine audit
-    const audit = await validateTheology(contextRaw);
-    const context = audit?.compliant === false && audit.fix ? audit.fix : contextRaw;
+    const context = await generateContext(reference, text);
 
     const payload = {
       date: today,
       reference,
       text,
       context,
-      rating,            // useful while testing; hide on UI if you want
-      translation: 'WEB' // Bible API default used above
+      rating,
+      translation: 'WEB'
     };
 
-    // Ensure /public exists
     const publicDir = path.join(process.cwd(), 'public');
     fs.mkdirSync(publicDir, { recursive: true });
 
-    // Write JSON
     fs.writeFileSync(path.join(publicDir, 'daily.json'), JSON.stringify(payload, null, 2));
-
-    // Write legacy JS global (if your page still consumes it)
     fs.writeFileSync(
       path.join(publicDir, 'daily.js'),
       `window.dailyVerse = ${JSON.stringify(payload, null, 2)};`
     );
 
-    console.log(`✅ ${today} | ${reference} | ${rating?.reason || 'ok'}${audit?.compliant === false ? ' | doctrine_fix_applied' : ''}`);
+    console.log(`✅ ${today} | ${reference} | ${rating?.reason || 'ok'}`);
   } catch (err) {
     console.error('❌ Failed to generate daily verse:', err?.stack || err);
   }
@@ -290,7 +245,6 @@ async function generateDailyVerse() {
 
 module.exports = generateDailyVerse;
 
-// Allow "node generate.js" to run it once locally
 if (require.main === module) {
   generateDailyVerse();
 }
