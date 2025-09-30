@@ -3,21 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>📖Daily Verse</title>
-  <!-- optional: your existing stylesheet -->
-  <link rel="stylesheet" href="/style.css" />
-  <style>
-    /* tiny defaults if you don't have a stylesheet */
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; line-height: 1.6; }
-    .meta { color: #666; margin-bottom: 1rem; }
-    .actions { display: flex; gap: .5rem; margin: 1rem 0 2rem; }
-    .actions button { padding: .6rem .9rem; border-radius: .6rem; border: 1px solid #ddd; background: #f8f8f8; cursor: pointer; }
-    .actions button:hover { background: #f1f1f1; }
-    #debug { opacity: .6; font-size: .82rem; white-space: pre-wrap; }
-  </style>
+  <title>Daily Verse</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main>
+  <main class="container">
     <h1 id="reference">Daily Verse</h1>
     <div class="meta">
       <span id="date">Date: —</span>
@@ -32,13 +22,15 @@
       <button id="shareBtn" type="button">🔗 Share</button>
     </div>
 
-    <section id="context" aria-live="polite"></section>
+    <section id="context" class="context" aria-live="polite"></section>
 
-    <!-- dev-only: comment out or remove in prod -->
+    <!-- dev-only: remove in prod -->
     <pre id="debug"></pre>
   </main>
 
   <script>
+    const API_BASE = 'https://daily-verse-viewer.onrender.com';
+
     const els = {
       date:        document.getElementById('date'),
       reference:   document.getElementById('reference'),
@@ -60,7 +52,7 @@
 
     async function loadDaily() {
       try {
-        const res = await fetch('/api/daily', { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/api/daily`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json();
 
