@@ -1,47 +1,118 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📖 Daily Bible Verse</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>📖Daily Verse</title>
+  <!-- optional: your existing stylesheet -->
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    /* tiny defaults if you don't have a stylesheet */
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; line-height: 1.6; }
+    .meta { color: #666; margin-bottom: 1rem; }
+    .actions { display: flex; gap: .5rem; margin: 1rem 0 2rem; }
+    .actions button { padding: .6rem .9rem; border-radius: .6rem; border: 1px solid #ddd; background: #f8f8f8; cursor: pointer; }
+    .actions button:hover { background: #f1f1f1; }
+    #debug { opacity: .6; font-size: .82rem; white-space: pre-wrap; }
+  </style>
 </head>
-
 <body>
-  <div class="container">
-    <h1>📖 Daily Bible Verse</h1>
-    <p class="date" id="date"></p>
-    <h2 id="reference"></h2>
+  <main>
+    <h1 id="reference">Daily Verse</h1>
+    <div class="meta">
+      <span id="date">Date: —</span>
+      <span aria-hidden="true"> · </span>
+      <span id="translation">WEB</span>
+    </div>
+
     <p id="text"></p>
-    <h3>Context:</h3>
-    <div id="context" class="context"></div>
-  </div>
 
-  <!-- Load the daily verse from your backend -->
-  <script src="https://daily-verse-viewer.onrender.com/daily.js"></script>
+    <div class="actions">
+      <button id="copyBtn" type="button">📋 Copy Verse</button>
+      <button id="shareBtn" type="button">🔗 Share</button>
+    </div>
+
+    <section id="context" aria-live="polite"></section>
+
+    <!-- dev-only: comment out or remove in prod -->
+    <pre id="debug"></pre>
+  </main>
+
   <script>
-const RENDER_BASE = 'https://daily-verse-viewer.onrender.com';
+    const els = {
+      date:        document.getElementById('date'),
+      reference:   document.getElementById('reference'),
+      text:        document.getElementById('text'),
+      context:     document.getElementById('context'),
+      translation: document.getElementById('translation'),
+      debug:       document.getElementById('debug'),
+      copyBtn:     document.getElementById('copyBtn'),
+      shareBtn:    document.getElementById('shareBtn'),
+    };
 
-async function loadDaily() {
-  try {
-    // If running on GitHub Pages, always call the Render API.
-    const url = `${RENDER_BASE}/api/daily`;
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Not ready');
-    const d = await res.json();
+    // lightweight guard: strip any <script> tags before inserting HTML
+    function stripScripts(html) {
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      div.querySelectorAll('script').forEach(s => s.remove());
+      return div.innerHTML;
+    }
 
-    document.getElementById('date').textContent = `Date: ${d.date}`;
-    document.getElementById('reference').textContent = d.reference;
-    document.getElementById('text').textContent = d.text;
-    document.getElementById('context').innerHTML = d.context || '';
-  } catch (e) {
-    console.warn('Daily verse not ready yet. Retrying…', e);
-  }
-}
+    async function loadDaily() {
+      try {
+        const res = await fetch('/api/daily', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
 
-loadDaily();
-setInterval(loadDaily, 60_000); // keep this while testing
-</script>
+        // update UI
+        els.date.textContent = `Date: ${d.date || '—'}`;
+        els.reference.textContent = d.reference || 'Daily Verse';
+        els.text.textContent = d.text || '';
+        els.translation.textContent = d.translation || 'WEB';
+        els.context.innerHTML = d.context ? stripScripts(d.context) : '';
+
+        // show rating while testing (optional)
+        if (els.debug) {
+          const rating = d.rating ? JSON.stringify(d.rating, null, 2) : '';
+          els.debug.textContent = rating;
+        }
+      } catch (e) {
+        if (els.debug) els.debug.textContent = `Not ready yet (${e.message}).`;
+      }
+    }
+
+    // Copy verse text + reference
+    els.copyBtn.addEventListener('click', async () => {
+      const content = `${els.reference.textContent} — ${els.text.textContent}`;
+      try {
+        await navigator.clipboard.writeText(content);
+        alert('Verse copied!');
+      } catch {
+        alert('Copy failed');
+      }
+    });
+
+    // Web Share API (falls back to alert if unsupported)
+    els.shareBtn.addEventListener('click', async () => {
+      const content = `${els.reference.textContent} — ${els.text.textContent}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Daily Verse',
+            text: content,
+            url: window.location.href
+          });
+        } catch {
+          /* user cancelled or share failed */
+        }
+      } else {
+        alert('Sharing not supported in this browser');
+      }
+    });
+
+    // initial load + dev polling (safe to remove for production)
+    loadDaily();
+    setInterval(loadDaily, 60_000);
+  </script>
 </body>
 </html>
