@@ -1,110 +1,66 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daily Verse</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <main class="container">
-    <h1 id="reference">Daily Verse</h1>
-    <div class="meta">
-      <span id="date">Date: —</span>
-      <span aria-hidden="true"> · </span>
-      <span id="translation">WEB</span>
-    </div>
+<script>
+  // CHANGE 1: make API base portable (same-origin)
+  const API_BASE = ''; // was 'https://daily-verse-viewer.onrender.com'
 
-    <p id="text"></p>
+  const els = {
+    date:        document.getElementById('date'),
+    reference:   document.getElementById('reference'),
+    text:        document.getElementById('text'),
+    context:     document.getElementById('context'),
+    translation: document.getElementById('translation'),
+    debug:       document.getElementById('debug'),
+    copyBtn:     document.getElementById('copyBtn'),
+    shareBtn:    document.getElementById('shareBtn'),
+  };
 
-    <div class="actions">
-      <button id="copyBtn" type="button">📋 Copy Verse</button>
-      <button id="shareBtn" type="button">🔗 Share</button>
-    </div>
+  function stripScripts(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    div.querySelectorAll('script').forEach(s => s.remove());
+    return div.innerHTML;
+  }
 
-    <section id="context" class="context" aria-live="polite"></section>
+  async function loadDaily() {
+    try {
+      const res = await fetch(`${API_BASE}/api/daily`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
 
-    <!-- dev-only: remove in prod -->
-   // <pre id="debug"></pre>
-  </main>
+      els.date.textContent = `Date: ${d.date || '—'}`;
+      els.reference.textContent = d.reference || 'Daily Verse';
+      els.text.textContent = d.text || '';
+      els.translation.textContent = d.translation || 'WEB';
+      els.context.innerHTML = d.context ? stripScripts(d.context) : '';
 
-  <script>
-    const API_BASE = 'https://daily-verse-viewer.onrender.com';
-
-    const els = {
-      date:        document.getElementById('date'),
-      reference:   document.getElementById('reference'),
-      text:        document.getElementById('text'),
-      context:     document.getElementById('context'),
-      translation: document.getElementById('translation'),
-      debug:       document.getElementById('debug'),
-      copyBtn:     document.getElementById('copyBtn'),
-      shareBtn:    document.getElementById('shareBtn'),
-    };
-
-    // lightweight guard: strip any <script> tags before inserting HTML
-    function stripScripts(html) {
-      const div = document.createElement('div');
-      div.innerHTML = html;
-      div.querySelectorAll('script').forEach(s => s.remove());
-      return div.innerHTML;
+      // dev debug (safe to keep commented)
+      // if (els.debug) els.debug.textContent = d.rating ? JSON.stringify(d.rating, null, 2) : '';
+    } catch (e) {
+      if (els.debug) els.debug.textContent = `Not ready yet (${e.message}).`;
     }
+  }
 
-    async function loadDaily() {
-      try {
-        const res = await fetch(`${API_BASE}/api/daily`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const d = await res.json();
-
-        // update UI
-        els.date.textContent = `Date: ${d.date || '—'}`;
-        els.reference.textContent = d.reference || 'Daily Verse';
-        els.text.textContent = d.text || '';
-        els.translation.textContent = d.translation || 'WEB';
-        els.context.innerHTML = d.context ? stripScripts(d.context) : '';
-
-        // show rating while testing (optional)
-       // if (els.debug) {
-        //  const rating = d.rating ? JSON.stringify(d.rating, null, 2) : '';
-        //  els.debug.textContent = rating;
-       // }
-      } catch (e) {
-        if (els.debug) els.debug.textContent = `Not ready yet (${e.message}).`;
-      }
+  els.copyBtn.addEventListener('click', async () => {
+    const content = `${els.reference.textContent} — ${els.text.textContent}`;
+    try {
+      await navigator.clipboard.writeText(content);
+      alert('Verse copied!');
+    } catch {
+      alert('Copy failed');
     }
+  });
 
-    // Copy verse text + reference
-    els.copyBtn.addEventListener('click', async () => {
-      const content = `${els.reference.textContent} — ${els.text.textContent}`;
+  els.shareBtn.addEventListener('click', async () => {
+    const content = `${els.reference.textContent} — ${els.text.textContent}`;
+    if (navigator.share) {
       try {
-        await navigator.clipboard.writeText(content);
-        alert('Verse copied!');
-      } catch {
-        alert('Copy failed');
-      }
-    });
+        await navigator.share({ title: 'Daily Verse', text: content, url: window.location.href });
+      } catch { /* user cancelled or share failed */ }
+    } else {
+      alert('Sharing not supported in this browser');
+    }
+  });
 
-    // Web Share API (falls back to alert if unsupported)
-    els.shareBtn.addEventListener('click', async () => {
-      const content = `${els.reference.textContent} — ${els.text.textContent}`;
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'Daily Verse',
-            text: content,
-            url: window.location.href
-          });
-        } catch {
-          /* user cancelled or share failed */
-        }
-      } else {
-        alert('Sharing not supported in this browser');
-      }
-    });
-
-    // initial load + dev polling (safe to remove for production)
-    loadDaily();
-    setInterval(loadDaily, 60_000);
-  </script>
-</body>
-</html>
+  // initial load + dev polling (remove setInterval in prod if you want)
+  loadDaily();
+  setInterval(loadDaily, 60_000);
+</script>
