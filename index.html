@@ -29,8 +29,8 @@
   </main>
 
   <script>
-  // CHANGE 1: make API base portable (same-origin)
-  const API_BASE = ''; // was 'https://daily-verse-viewer.onrender.com'
+  // always fetch from Render API
+  const API_BASE = 'https://daily-verse-viewer.onrender.com';
 
   const els = {
     date:        document.getElementById('date'),
@@ -38,9 +38,9 @@
     text:        document.getElementById('text'),
     context:     document.getElementById('context'),
     translation: document.getElementById('translation'),
-    debug:       document.getElementById('debug'),
     copyBtn:     document.getElementById('copyBtn'),
     shareBtn:    document.getElementById('shareBtn'),
+    debug:       document.getElementById('debug'),
   };
 
   function stripScripts(html) {
@@ -62,35 +62,29 @@
       els.translation.textContent = d.translation || 'WEB';
       els.context.innerHTML = d.context ? stripScripts(d.context) : '';
 
-      // dev debug (safe to keep commented)
-      // if (els.debug) els.debug.textContent = d.rating ? JSON.stringify(d.rating, null, 2) : '';
+      // optional debug
+      // if (els.debug) els.debug.textContent = JSON.stringify(d.rating, null, 2);
     } catch (e) {
-      if (els.debug) els.debug.textContent = `Not ready yet (${e.message}).`;
+      if (els.debug) els.debug.textContent = `Not ready (${e.message})`;
     }
   }
 
-  els.copyBtn.addEventListener('click', async () => {
+  els.copyBtn?.addEventListener('click', async () => {
     const content = `${els.reference.textContent} — ${els.text.textContent}`;
-    try {
-      await navigator.clipboard.writeText(content);
-      alert('Verse copied!');
-    } catch {
-      alert('Copy failed');
-    }
+    try { await navigator.clipboard.writeText(content); alert('Verse copied!'); }
+    catch { alert('Copy failed'); }
   });
 
-  els.shareBtn.addEventListener('click', async () => {
+  els.shareBtn?.addEventListener('click', async () => {
     const content = `${els.reference.textContent} — ${els.text.textContent}`;
     if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Daily Verse', text: content, url: window.location.href });
-      } catch { /* user cancelled or share failed */ }
+      try { await navigator.share({ title: 'Daily Verse', text: content, url: location.href }); } catch {}
     } else {
-      alert('Sharing not supported in this browser');
+      alert('Sharing not supported');
     }
   });
 
-  // initial load + dev polling (remove setInterval in prod if you want)
+  // load immediately + poll every minute while testing
   loadDaily();
   setInterval(loadDaily, 60_000);
 </script>
