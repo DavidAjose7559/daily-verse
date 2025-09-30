@@ -1,15 +1,89 @@
+// generate.js
+// ------------------------------
+// Generates the "daily verse" payload, with an edification gate.
+// Writes: public/daily.json and public/daily.js
+//
+// Env: OPENAI_API_KEY
+//
+// Optional file: verseMap.json (format: { "Genesis": [31,25,24,...], "Exodus": [...] })
+// If verseMap.json is missing, we fall back to WHITELIST_DEFAULTS.
+
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
 const crypto = require('crypto');
-const { DateTime } = require('luxon'); // npm i luxon
+const { DateTime } = require('luxon');
 
-function pickDailyReferenceFor(dateISO) {
-  // stable hash from date like "2025-09-29"
-  const h = crypto.createHash('sha256').update(dateISO).digest();
+// --- OpenAI client ---
+const OpenAI = require('openai');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// --- Try to load verseMap.json if present ---
+let verseMap = null;
+try {
+  const vmPath = path.join(process.cwd(), 'verseMap.json');
+  if (fs.existsSync(vmPath)) {
+    verseMap = JSON.parse(fs.readFileSync(vmPath, 'utf8'));
+  }
+} catch (_) {
+  verseMap = null;
+}
+
+// --- Edification controls ---
+const BLOCKLIST = new Set([
+  // Add references you never want to surface for daily memorization:
+  "Matthew 27:5",     // Judas’ suicide
+  "Judges 19:25",
+  "2 Samuel 13:14",
+  // expand as needed...
+]);
+
+// Good “memory” candidates if everything else fails (or if you skip verseMap.json)
+const WHITELIST_DEFAULTS = [
+  "Philippians 4:6-7",
+  "Proverbs 3:5-6",
+  "Romans 8:28",
+  "Psalm 23:1",
+  "Isaiah 41:10",
+  "Matthew 11:28-30",
+  "John 3:16",
+  "Ephesians 3:20",
+  "Joshua 1:9",
+  "Psalm 27:1",
+  "Romans 12:2",
+  "Galatians 2:20",
+];
+
+// --- Explainer prompt (explain only, no selection logic) ---
+const EXPLAIN_PROMPT = `
+Explain this Bible verse using only biblical context. Keep it pastoral, faithful, concise.
+Return clean HTML with:
+- <h2> one-line summary (what it says)
+- <p> what it reveals about God/Christ
+- <p> how a believer can live this today
+- <ul> 2–3 cross-references (list items: just references)
+No inline styles, no scripts, no external links.
+`;
+
+// --- Helper: deterministic hashing pick ---
+function shaPick(bytes) {
+  return crypto.createHash('sha256').update(bytes).digest();
+}
+
+function pickFromWhitelist(dateISO, offset = 0) {
+  const h = shaPick(`${dateISO}#w#${offset}`);
+  const idx = h[0] % WHITELIST_DEFAULTS.length;
+  return WHITELIST_DEFAULTS[idx];
+}
+
+function pickFromVerseMap(dateISO, offset = 0) {
+  // Requires verseMap (book -> [chapters verseCounts])
+  const h = shaPick(`${dateISO}#vm#${offset}`);
   const books = Object.keys(verseMap);
-
   const bookIdx = h[0] % books.length;
   const book = books[bookIdx];
 
-  const chapterIdx = h[1] % verseMap[book].length;  // 0-based
+  const chapterIdx = h[1] % verseMap[book].length; // 0-based
   const chapter = chapterIdx + 1;
 
   const maxVerses = verseMap[book][chapterIdx];
@@ -18,121 +92,142 @@ function pickDailyReferenceFor(dateISO) {
   return `${book} ${chapter}:${verse}`;
 }
 
-// generate.js
-const fs = require('fs');
-const path = require('path');
-const axios = require('axios');
-const { OpenAI } = require('openai');
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const verseMap = {
-  "Matthew": [25, 23, 17, 25, 48, 34, 29, 34, 38, 42, 30, 50, 58, 36, 39, 28, 27, 35, 30, 34, 46, 46, 39, 51, 46, 75, 66, 20],
-  "Mark": [45, 28, 35, 41, 43, 56, 37, 38, 50, 52, 33, 44, 37, 72, 47, 20],
-  "Luke": [80, 52, 38, 44, 39, 49, 50, 56, 62, 42, 54, 59, 35, 35, 32, 31, 37, 43, 48, 47, 38, 71, 56, 53],
-  "John": [51, 25, 36, 54, 47, 71, 53, 59, 41, 42, 57, 50, 38, 31, 27, 33, 26, 40, 42, 31, 25],
-  "Acts": [26, 47, 26, 37, 42, 15, 60, 40, 43, 48, 30, 25, 52, 28, 41, 40, 34, 28, 41, 38, 40, 30, 35, 27, 27, 32, 44, 31],
-  "Romans": [32, 29, 31, 25, 21, 23, 25, 39, 33, 21, 36, 21, 14, 23, 33, 27],
-  "1 Corinthians": [31, 16, 23, 21, 13, 20, 40, 13, 27, 33, 34, 31, 13, 40, 58, 24],
-  "2 Corinthians": [24, 17, 18, 18, 21, 18, 16, 24, 15, 18, 33, 21, 14],
-  "Galatians": [24, 21, 29, 31, 26, 18],
-  "Ephesians": [23, 22, 21, 32, 33, 24],
-  "Philippians": [30, 30, 21, 23],
-  "Colossians": [29, 23, 25, 18],
-  "1 Thessalonians": [10, 20, 13, 18, 28],
-  "2 Thessalonians": [12, 17, 18],
-  "1 Timothy": [20, 15, 16, 16, 25, 21],
-  "2 Timothy": [18, 26, 17, 22],
-  "Titus": [16, 15, 15],
-  "Philemon": [25],
-  "Hebrews": [14, 18, 19, 16, 14, 20, 28, 13, 28, 39, 40, 29, 25],
-  "James": [27, 26, 18, 17, 20],
-  "1 Peter": [25, 25, 22, 19, 14],
-  "2 Peter": [21, 22, 18],
-  "1 John": [10, 29, 24, 21, 21],
-  "2 John": [13],
-  "3 John": [15],
-  "Jude": [25]
-};
-
-function getRandomVerseReference() {
-  const books = Object.keys(verseMap);
-  const book = books[Math.floor(Math.random() * books.length)];
-  const chapterIndex = Math.floor(Math.random() * verseMap[book].length);
-  const chapter = chapterIndex + 1;
-  const maxVerses = verseMap[book][chapterIndex];
-  const verse = Math.floor(Math.random() * maxVerses) + 1;
-  return `${book} ${chapter}:${verse}`;
+function pickCandidate(dateISO, offset = 0) {
+  if (verseMap && typeof verseMap === 'object') {
+    return pickFromVerseMap(dateISO, offset);
+  }
+  return pickFromWhitelist(dateISO, offset);
 }
 
+// --- Bible API fetch ---
 async function fetchVerseText(reference) {
-  const url = `https://bible-api.com/${encodeURIComponent(reference)}`;
-  const response = await axios.get(url);
-  return response.data.text.trim();
-}
-
-async function generateContext(reference, text) {
-  const prompt = `You are given a Bible verse and its text. First, check if this verse is too short or isolated (e.g., "Jesus wept") and would not make sense when read alone.
-
-If so:
-- Either extend it by adding the verse(s) before or after it to provide enough context.
-- Or ignore it and pick another random Bible verse that makes more sense on its own.
-
-Then explain the final verse using only biblical context — include:
-- Pretext (what comes before)
-- Context (surrounding verse)
-- Post-text (what follows)
-
-Also identify 1–2 key Greek or Hebrew words. For each, show:
-- The English word
-- The original word
-- A short meaning
-
-Respond in clean HTML using <p>, <strong>, <ul>, <li>, and <em> tags.
-Do NOT wrap the output in Markdown code blocks or triple quotes.
-Avoid personal opinions or life application. This is to help memorize and quote the verse accurately.
-
-${reference} - "${text}"`;
-
-  const chat = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.7,
-  });
-
-  return chat.choices[0].message.content.trim();
-}
-
-async function generateDailyVerse() {
+  // Bible API: https://bible-api.com/<ref>?translation=web
+  const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=web`;
   try {
-    const today = DateTime.now().setZone('America/Toronto').toISODate();
-    const reference = pickDailyReferenceFor(today);
-    const date = today;
-    const text = await fetchVerseText(reference);
-    const context = await generateContext(reference, text);
-    
+    const res = await axios.get(url, { timeout: 15000 });
+    if (res && res.data && res.data.text) {
+      return String(res.data.text).trim();
+    }
+  } catch (_) {}
+  return null;
+}
 
-    const verse = { date, reference, text, context };
+// --- Edification classifier (strict JSON) ---
+async function classifySuitability(reference, text) {
+  const prompt = `
+Return STRICT JSON ONLY (no markdown, no prose).
+Is this verse suitable for daily edification/memorization (authority, encouragement, learning)?
+Disqualify if mainly about suicide/rape/murder descriptions, curses/punishments without hope,
+genealogies/inventories/measurements, or content likely to distress without broader context.
 
-    // ensure public dir exists
-    const publicDir = path.join(process.cwd(), 'public');
-    fs.mkdirSync(publicDir, { recursive: true });
+Schema:
+{"safe": true|false, "category": "edifying|neutral|non_edifying", "reason": "short phrase"}
+  `.trim();
 
-    // 1) Keep existing JS global for backward compatibility
-    const jsContent = `window.dailyVerse = ${JSON.stringify(verse, null, 2)};`;
-    fs.writeFileSync(path.join(publicDir, 'daily.js'), jsContent);
-
-    // 2) NEW: JSON payload so /api/daily can serve it
-    fs.writeFileSync(path.join(publicDir, 'daily.json'), JSON.stringify(verse, null, 2));
-
-    console.log('✅ Saved public/daily.js and public/daily.json');
-  } catch (err) {
-    console.error('❌ Failed to generate daily verse:', err?.message || err);
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0,
+      max_tokens: 120,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: 'You are a strict JSON classifier.' },
+        { role: 'user', content: `${prompt}\n\n${reference}\n"${text}"` },
+      ],
+    });
+    const raw = resp.choices?.[0]?.message?.content || '{}';
+    return JSON.parse(raw);
+  } catch (_) {
+    return { safe: false, category: 'non_edifying', reason: 'classifier_error' };
   }
 }
 
-module.exports = generateDailyVerse;
+// --- Context HTML generator (explain only) ---
+async function generateContextHtml(reference, text) {
+  const messages = [
+    { role: 'system', content: 'You are a concise, biblically faithful pastor-teacher.' },
+    { role: 'user', content: `${EXPLAIN_PROMPT}\n\nReference: ${reference}\nText:\n${text}` },
+  ];
 
-if (require.main === module) {
-  generateDailyVerse();
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    temperature: 0.5,
+    max_tokens: 600,
+    messages,
+  });
+
+  const html = resp.choices?.[0]?.message?.content?.trim() || '';
+  return html;
 }
+
+// --- Main entry ---
+async function generateDailyVerse() {
+  // Local date for stability
+  const today = DateTime.now().setZone('America/Toronto').toISODate();
+
+  // Try up to N deterministic alternatives (bumping offset) until one passes the gate
+  const MAX_TRIES = 15;
+  let reference = null;
+  let text = null;
+  let rating = null;
+  let picked = false;
+
+  for (let offset = 0; offset < MAX_TRIES; offset++) {
+    reference = pickCandidate(today, offset);
+
+    // blocklist shortcut
+    if (BLOCKLIST.has(reference)) continue;
+
+    text = await fetchVerseText(reference);
+    if (!text) continue;
+
+    rating = await classifySuitability(reference, text);
+    if (rating?.safe) {
+      picked = true;
+      break;
+    }
+  }
+
+  // Fallback: from whitelist (guaranteed)
+  if (!picked) {
+    reference = pickFromWhitelist(today, 777); // arbitrary offset for fallback
+    text = await fetchVerseText(reference) || reference; // worst-case: put ref as text
+    rating = { safe: true, category: 'edifying', reason: 'fallback_whitelist' };
+  }
+
+  // Generate pastoral context (HTML)
+  const context = await generateContextHtml(reference, text);
+
+  const payload = {
+    date: today,
+    reference,
+    text,
+    context,
+    rating, // helpful while testing
+    translation: 'WEB', // Bible API default
+  };
+
+  // Ensure /public exists
+  const outDir = path.join(process.cwd(), 'public');
+  fs.mkdirSync(outDir, { recursive: true });
+
+  // Write JSON
+  const jsonPath = path.join(outDir, 'daily.json');
+  fs.writeFileSync(jsonPath, JSON.stringify(payload, null, 2));
+
+  // Write legacy JS global (if your page still loads it)
+  const jsPath = path.join(outDir, 'daily.js');
+  fs.writeFileSync(jsPath, `window.dailyVerse=${JSON.stringify(payload)};`);
+
+  console.log(`✅ Generated daily verse for ${today}: ${reference}`);
+}
+
+// If invoked directly: run once
+if (require.main === module) {
+  generateDailyVerse().catch(err => {
+    console.error('❌ generateDailyVerse failed:', err?.stack || err);
+    process.exit(1);
+  });
+}
+
+module.exports = generateDailyVerse;
