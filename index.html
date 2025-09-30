@@ -25,7 +25,7 @@
     <section id="context" class="context" aria-live="polite"></section>
 
     <!-- dev-only: remove in prod -->
-    <pre id="debug"></pre>
+   // <pre id="debug"></pre>
   </main>
 
   <script>
@@ -64,10 +64,10 @@
         els.context.innerHTML = d.context ? stripScripts(d.context) : '';
 
         // show rating while testing (optional)
-        if (els.debug) {
-          const rating = d.rating ? JSON.stringify(d.rating, null, 2) : '';
-          els.debug.textContent = rating;
-        }
+       // if (els.debug) {
+        //  const rating = d.rating ? JSON.stringify(d.rating, null, 2) : '';
+        //  els.debug.textContent = rating;
+       // }
       } catch (e) {
         if (els.debug) els.debug.textContent = `Not ready yet (${e.message}).`;
       }
