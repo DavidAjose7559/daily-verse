@@ -1,9 +1,10 @@
-// server.js — prod hardening + midnight schedule + last-good fallback + redirect to Pages
+// server.js — prod hardening + midnight schedule + last-good fallback
+// + archive API + redirect to GitHub Pages (frontend)
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { DateTime } = require('luxon');
-const generateVerse = require('./generate'); // writes public/daily.json + last-good.json + daily.js
+const generateVerse = require('./generate'); // writes public/daily.json + last-good.json + daily.js (+ archive)
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,9 +32,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS (relaxed while testing; tighten to your domain in prod if you like)
+// CORS (relaxed for GitHub Pages frontend hitting this API)
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*'); // loosened for dev / cross-origin from GitHub Pages
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   next();
 });
@@ -48,10 +49,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- static files (/daily.js, /daily.json, /style.css, etc.) ---
+// --- static files (/daily.js, /daily.json, etc.) ---
 app.use(express.static(PUBLIC_DIR));
 
-// --- JSON API for the client (with last-good fallback) ---
+/* =======================
+   API ROUTES
+   ======================= */
+
+// Current daily JSON (with last-good fallback)
 app.get('/api/daily', (req, res) => {
   try {
     const dailyPath = path.join(PUBLIC_DIR, 'daily.json');
@@ -62,14 +67,12 @@ app.get('/api/daily', (req, res) => {
       res.type('application/json').send(data);
       return;
     }
-
     if (fs.existsSync(lastGoodPath)) {
       const data = fs.readFileSync(lastGoodPath, 'utf8');
       res.setHeader('X-Fallback', 'last-good');
       res.type('application/json').send(data);
       return;
     }
-
     res.status(503).json({ error: 'Daily verse not ready yet.' });
   } catch (err) {
     try {
@@ -85,33 +88,72 @@ app.get('/api/daily', (req, res) => {
   }
 });
 
-// optional status/introspection
+// Archive: list last 30 days (date + reference)
+app.get('/api/archive', (_req, res) => {
+  try {
+    const p = path.join(PUBLIC_DIR, 'archive', 'index.json');
+    const data = fs.readFileSync(p, 'utf8');
+    res.type('application/json').send(data);
+  } catch {
+    res.json([]);
+  }
+});
+
+// Archive: get specific day snapshot
+app.get('/api/archive/:date', (req, res) => {
+  try {
+    const p = path.join(PUBLIC_DIR, 'archive', `${req.params.date}.json`);
+    const data = fs.readFileSync(p, 'utf8');
+    res.type('application/json').send(data);
+  } catch {
+    res.status(404).json({ error: 'Not found' });
+  }
+});
+
+// Optional status
 app.get('/api/status', (_req, res) => {
   const dailyPath = path.join(PUBLIC_DIR, 'daily.json');
   const lastGoodPath = path.join(PUBLIC_DIR, 'last-good.json');
+  const hasDaily = fs.existsSync(dailyPath);
+  const hasLastGood = fs.existsSync(lastGoodPath);
+  let archiveCount = 0;
+  try {
+    const idx = JSON.parse(
+      fs.readFileSync(path.join(PUBLIC_DIR, 'archive', 'index.json'), 'utf8')
+    );
+    archiveCount = Array.isArray(idx) ? idx.length : 0;
+  } catch {}
   res.json({
-    hasDaily: fs.existsSync(dailyPath),
-    hasLastGood: fs.existsSync(lastGoodPath),
+    hasDaily,
+    hasLastGood,
+    archiveCount,
     nodeEnv: process.env.NODE_ENV || 'development',
   });
 });
 
-// --- redirect root to your GitHub Pages frontend (Option A you picked) ---
+/* =======================
+   FRONTEND ROUTES
+   ======================= */
+
+// Redirect root to your GitHub Pages frontend (Option A)
 app.get('/', (_req, res) => {
   res.redirect('https://davidaajose7559.github.io/daily-verse/');
 });
 
-// --- health check ---
+// Health check
 app.get('/healthz', (_req, res) => res.type('text/plain').send('ok'));
 
-// --- scheduling helpers ---
+/* =======================
+   SCHEDULER
+   ======================= */
+
 function msUntilNextMidnightToronto() {
   const now = DateTime.now().setZone('America/Toronto');
   const next = now.plus({ days: 1 }).startOf('day');
   return next.diff(now).as('milliseconds');
 }
 
-// --- generate on boot + schedule ---
+// Generate on boot + schedule
 (async function boot() {
   try {
     await generateVerse();
