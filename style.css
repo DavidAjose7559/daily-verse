@@ -12,20 +12,6 @@
   --border: #eee;
 }
 
-/* Dark mode overrides */
-:root[data-theme="dark"],
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0b1020;
-    --text: #e6edf7;
-    --brand: #60a5fa;
-    --muted: #9aa4b2;
-    --card: #0f162a;
-    --ring: rgba(96,165,250,.35);
-    --border: #29324a;
-  }
-}
-
 * { box-sizing: border-box; }
 
 body {
@@ -36,6 +22,30 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Dark mode overrides (manual toggle) ---- */
+:root[data-theme="dark"] {
+  --bg: #0b1020;
+  --text: #e6edf7;
+  --brand: #60a5fa;
+  --muted: #9aa4b2;
+  --card: #0f162a;
+  --ring: rgba(96,165,250,.35);
+  --border: #29324a;
+}
+
+/* ---- Dark mode (OS preference) when user hasn't forced "light" ---- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1020;
+    --text: #e6edf7;
+    --brand: #60a5fa;
+    --muted: #9aa4b2;
+    --card: #0f162a;
+    --ring: rgba(96,165,250,.35);
+    --border: #29324a;
+  }
 }
 
 /* Container */
@@ -179,11 +189,8 @@ h3 {
   margin-top: 1.5rem;
 }
 
-/* Links inside context (if any) */
-a {
-  color: var(--brand);
-  text-decoration: none;
-}
+/* Links */
+a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* Responsive */
@@ -193,15 +200,9 @@ a:hover { text-decoration: underline; }
     padding: 20px;
   }
 
-  h1 {
-    font-size: 1.6rem;
-  }
+  h1 { font-size: 1.6rem; }
 
-  .actions {
-    gap: .5rem;
-  }
+  .actions { gap: .5rem; }
 
-  .actions button, .actions a {
-    width: 100%;
-  }
+  .actions button, .actions a { width: 100%; }
 }
