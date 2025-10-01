@@ -23,7 +23,7 @@
       <div class="actions">
         <button id="copyBtn" class="btn">Copy Verse</button>
         <button id="shareBtn" class="btn btn-ghost">Share</button>
-        <!-- New: archive navigation -->
+        <!-- Archive navigation -->
         <button id="prevBtn" class="btn btn-ghost">Yesterday</button>
         <button id="todayBtn" class="btn" style="display:none">Today</button>
       </div>
@@ -68,17 +68,19 @@
     }
 
     // ==============================
-    // Rendering helpers
+    // Rendering helper
     // ==============================
     function renderPayload(d) {
       els.date.textContent        = `Date: ${d.date || '—'}`;
       els.reference.textContent   = d.reference || 'Daily Verse';
       els.text.textContent        = d.text || '';
       els.translation.textContent = d.translation || 'WEB';
-      els.context.innerHTML       = stripScripts(d.context);
+      els.context.innerHTML       = stripScripts(d.context || '');
     }
 
-    // Toronto date helpers (YYYY-MM-DD without libs)
+    // ==============================
+    // Toronto date helpers (no libs)
+    // ==============================
     function torontoISO(date = new Date()) {
       const fmt = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Toronto',
@@ -96,6 +98,30 @@
       const dd = String(dt.getUTCDate()).padStart(2, '0');
       return `${yy}-${mm}-${dd}`;
     }
+    function addDaysISO(iso, delta) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + delta);
+      const y2 = dt.getUTCFullYear();
+      const m2 = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const d2 = String(dt.getUTCDate()).padStart(2, '0');
+      return `${y2}-${m2}-${d2}`;
+    }
+
+    // ==============================
+    // Deep link helpers (?date=YYYY-MM-DD)
+    // ==============================
+    function getQueryDate() {
+      const url = new URL(location.href);
+      const q = url.searchParams.get('date');
+      return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : null;
+    }
+    function setQueryDate(isoOrNull) {
+      const url = new URL(location.href);
+      if (isoOrNull) url.searchParams.set('date', isoOrNull);
+      else url.searchParams.delete('date');
+      history.replaceState({}, '', url.toString());
+    }
 
     // ==============================
     // Fetch + render (Today)
@@ -108,11 +134,9 @@
         renderPayload(d);
         // toggle nav buttons for "today" view
         els.todayBtn.style.display = 'none';
-        els.prevBtn.style.display = 'inline-block';
+        els.prevBtn.style.display  = 'inline-block';
         els.prevBtn.disabled = false;
-        // Uncomment for debugging:
-        // els.debug.style.display = 'block';
-        // els.debug.textContent = JSON.stringify(d.rating, null, 2);
+        setQueryDate(null); // clear deep link when on today
       } catch (e) {
         if (els.debug) {
           els.debug.style.display = 'block';
@@ -122,21 +146,27 @@
     }
 
     // ==============================
-    // Fetch + render (Yesterday)
+    // Fetch + render (Archive day)
     // ==============================
-    async function loadYesterday() {
-      const y = torontoYesterdayISO();
+    async function loadArchive(dateIso) {
       try {
-        const res = await fetch(`${API_BASE}/api/archive/${y}`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`No archive for ${y}`);
+        const res = await fetch(`${API_BASE}/api/archive/${dateIso}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`No archive for ${dateIso}`);
         const d = await res.json();
         renderPayload(d);
-        // toggle nav buttons for "yesterday" view
-        els.prevBtn.style.display = 'none';
+        // toggle nav buttons for "archive" view
+        els.prevBtn.style.display  = 'none';
         els.todayBtn.style.display = 'inline-block';
+        setQueryDate(dateIso); // set deep link
       } catch (e) {
-        alert('No saved verse for yesterday yet.'); // could be the first day running
+        alert(`No saved verse for ${dateIso}.`);
       }
+    }
+
+    // Convenience for Yesterday
+    async function loadYesterday() {
+      const y = torontoYesterdayISO();
+      await loadArchive(y);
     }
 
     // ==============================
@@ -154,12 +184,18 @@
 
     els.shareBtn.addEventListener('click', async () => {
       const content = `${els.reference.textContent} — ${els.text.textContent}`;
+      const url = location.href; // includes ?date=... when on an archive day
       if (navigator.share) {
         try {
-          await navigator.share({ title: 'Daily Verse', text: content, url: location.href });
+          await navigator.share({ title: 'Daily Verse', text: content, url });
         } catch { /* user cancelled or share failed */ }
       } else {
-        alert('Sharing not supported in this browser');
+        try {
+          await navigator.clipboard.writeText(`${content}\n${url}`);
+          alert('Copied verse + link!');
+        } catch {
+          alert('Sharing not supported in this browser');
+        }
       }
     });
 
@@ -177,6 +213,27 @@
       } catch {
         els.prevBtn.disabled = true;
       }
+    })();
+
+    // ==============================
+    // Init: deep link or today
+    // ==============================
+    (async function init() {
+      const qd = getQueryDate();
+      if (qd) {
+        // try to load that archived day; if missing, fall back to today
+        try {
+          const res = await fetch(`${API_BASE}/api/archive/${qd}`, { cache: 'no-store' });
+          if (res.ok) {
+            const d = await res.json();
+            renderPayload(d);
+            els.prevBtn.style.display  = 'none';
+            els.todayBtn.style.display = 'inline-block';
+            return;
+          }
+        } catch {}
+      }
+      await loadDaily();
     })();
 
     // ==============================
@@ -198,13 +255,15 @@
       return next - torontoNow;
     }
 
-    // First load immediately
-    loadDaily();
-
     // Refresh once at next midnight, then every 24h
     setTimeout(() => {
-      loadDaily();
-      setInterval(loadDaily, 24 * 60 * 60 * 1000);
+      // Only refresh if we're on "today" view (no ?date param)
+      if (!getQueryDate()) {
+        loadDaily();
+      }
+      setInterval(() => {
+        if (!getQueryDate()) loadDaily();
+      }, 24 * 60 * 60 * 1000);
     }, msUntilNextMidnightToronto());
   </script>
 </body>
