@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Daily Verse — Archive</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* tiny layout helpers (works with your existing CSS variables) */
+    .container { max-width: 860px; margin: 0 auto; padding: 1.25rem; }
+    .header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
+    .title { font-size: clamp(1.25rem, 2vw, 1.6rem); font-weight: 700; }
+    .muted { opacity: .7; font-size: .95rem; }
+    .list { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: .75rem; margin-top: 1rem; }
+    .card { border: 1px solid var(--border, #e5e7eb); border-radius: 12px; padding: .85rem; background: var(--panel, #fff); }
+    .card a { text-decoration: none; }
+    .card h3 { margin: 0 0 .35rem 0; font-size: 1rem; }
+    .card p { margin: 0; font-size: .92rem; opacity: .8; }
+    .toolbar { display:flex; gap:.5rem; align-items:center; }
+    .btn { padding: .5rem .75rem; border-radius: 10px; border: 1px solid var(--border,#e5e7eb); background: var(--panel,#fff); cursor:pointer; }
+    .btn:hover { filter: brightness(0.98); }
+    .empty { padding: 1rem; border: 1px dashed var(--border,#e5e7eb); border-radius: 12px; text-align:center; }
+    .error { color: #b00020; }
+    @media (prefers-color-scheme: dark) {
+      .error { color: #ff637d; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div>
+        <div class="title">Archive</div>
+        <div class="muted">Last 30 days · Click a date to view its verse</div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="./">Today</a>
+      </div>
+    </header>
+
+    <section id="content" class="list" aria-live="polite"></section>
+    <div id="status" class="muted" style="margin-top:.75rem;"></div>
+  </div>
+
+  <script>
+    // Use Render API when on GitHub Pages; use same-origin if hosted on Render
+    const API_BASE = location.hostname.endsWith('github.io')
+      ? 'https://daily-verse-viewer.onrender.com'
+      : '';
+
+    const $content = document.getElementById('content');
+    const $status  = document.getElementById('status');
+
+    function linkForDate(iso) {
+      // Deep link back to your main page with ?date=YYYY-MM-DD
+      // If your index page has a different path, adjust the URL below.
+      const base = location.hostname.endsWith('github.io')
+        ? (location.origin + location.pathname.replace(/archive\.html$/, ''))
+        : (location.origin + '/');
+      const url = new URL(base);
+      url.searchParams.set('date', iso);
+      return url.toString();
+    }
+
+    function el(tag, attrs={}, children=[]) {
+      const node = document.createElement(tag);
+      Object.entries(attrs).forEach(([k,v]) => {
+        if (k === 'class') node.className = v;
+        else if (k === 'html') node.innerHTML = v;
+        else node.setAttribute(k, v);
+      });
+      (Array.isArray(children) ? children : [children])
+        .filter(Boolean).forEach(c => node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+      return node;
+    }
+
+    async function loadArchive() {
+      $status.textContent = 'Loading…';
+      try {
+        const res = await fetch(`${API_BASE}/api/archive`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const list = await res.json();
+
+        $content.innerHTML = '';
+        if (!list || list.length === 0) {
+          $content.appendChild(el('div', {class:'empty'}, 'No archive yet. Check back tomorrow!'));
+          $status.textContent = '';
+          return;
+        }
+
+        for (const item of list) {
+          const href = linkForDate(item.date);
+          const card = el('article', {class: 'card'}, [
+            el('a', { href }, [
+              el('h3', {}, item.date),
+              el('p', {}, item.reference || '')
+            ])
+          ]);
+          $content.appendChild(card);
+        }
+        $status.textContent = '';
+      } catch (e) {
+        $status.innerHTML = `<span class="error">Failed to load archive.</span>`;
+        console.error(e);
+      }
+    }
+
+    loadArchive();
+  </script>
+</body>
+</html>
