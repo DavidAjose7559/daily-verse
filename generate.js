@@ -209,7 +209,7 @@ async function generateDailyVerse() {
   try {
     const MAX_TRIES = 20;
     //const today = DateTime.now().setZone('America/Toronto').toISODate();
-    //const today = DateTime.now().setZone('America/Toronto').plus({ days: 2 }).toISODate();
+    const today = DateTime.now().setZone('America/Toronto').plus({ days: 2 }).toISODate();
 
     let reference = null;
     let text = null;
