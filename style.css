@@ -1,8 +1,8 @@
 /* Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Crimson+Text:ital@0;1&display=swap');
 
-/* Base */
-:root{
+/* Base (light default) */
+:root {
   --bg: #f4f6f8;
   --text: #1e1e1e;
   --brand: #2b6cb0;
@@ -10,6 +10,20 @@
   --card: #ffffff;
   --ring: rgba(43,108,176,.35);
   --border: #eee;
+}
+
+/* Dark mode overrides */
+:root[data-theme="dark"],
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1020;
+    --text: #e6edf7;
+    --brand: #60a5fa;
+    --muted: #9aa4b2;
+    --card: #0f162a;
+    --ring: rgba(96,165,250,.35);
+    --border: #29324a;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -55,7 +69,7 @@ h1 {
 p, #text {
   font-size: 1.1rem;
   font-family: 'Crimson Text', serif;
-  color: #222;
+  color: var(--text);
   margin-top: 0;
   margin-bottom: 1.5rem;
 }
@@ -63,27 +77,27 @@ p, #text {
 /* Section headings from explainer */
 h2 {
   font-size: 1.4rem;
-  color: #333;
+  color: var(--text);
   margin: .4rem 0;
 }
 
 h3 {
   font-size: 1.2rem;
-  color: #444;
+  color: var(--text);
   margin-top: 2.0rem;
   margin-bottom: 1rem;
 }
 
-/* Context block (apply to both class and id) */
+/* Context block */
 .context, #context {
-  background-color: #fefefe;
+  background-color: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
   line-height: 1.9;
   font-family: 'Crimson Text', serif;
   font-size: 1.05rem;
-  color: #2a2a2a;
+  color: var(--text);
 }
 
 .context h4, #context h4 {
@@ -118,7 +132,7 @@ h3 {
   color: var(--brand);
 }
 
-/* Actions: Copy / Share */
+/* Actions: Copy / Share / Nav / Theme */
 .actions {
   display: flex;
   gap: .6rem;
@@ -126,18 +140,21 @@ h3 {
   margin: 1rem 0 2rem;
 }
 
-.actions button {
+.actions button,
+.actions a {
   padding: .6rem .95rem;
   border-radius: .6rem;
-  border: 1px solid #ddd;
-  background: #f8f8f8;
-  color: #1f2937;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
   cursor: pointer;
   transition: background .15s ease, border-color .15s ease, transform .02s ease-in-out;
+  text-decoration: none;
 }
 
-.actions button:hover {
-  background: #f1f1f1;
+.actions button:hover,
+.actions a:hover {
+  background: rgba(0,0,0,0.04);
 }
 
 .actions button:active {
@@ -155,8 +172,8 @@ h3 {
   opacity: .6;
   font-size: .82rem;
   white-space: pre-wrap;
-  background: #fafafa;
-  border: 1px dashed #e5e7eb;
+  background: var(--bg);
+  border: 1px dashed var(--border);
   padding: .6rem .8rem;
   border-radius: 8px;
   margin-top: 1.5rem;
@@ -184,7 +201,7 @@ a:hover { text-decoration: underline; }
     gap: .5rem;
   }
 
-  .actions button {
+  .actions button, .actions a {
     width: 100%;
   }
 }
