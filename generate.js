@@ -1,8 +1,13 @@
 // generate.js
 // -------------------------------------------------------------
 // Generates the "daily verse" payload with doctrine guardrails,
-// an edification filter, retries, and atomic writes.
-// Writes: public/daily.json, public/last-good.json, public/daily.js
+// an edification filter, retries, atomic writes, and an archive.
+// Writes:
+//   public/daily.json
+//   public/last-good.json
+//   public/daily.js
+//   public/archive/YYYY-MM-DD.json
+//   public/archive/index.json
 //
 // Env: OPENAI_API_KEY
 // Deps: axios, luxon, openai
@@ -208,8 +213,7 @@ Text: "${text}"`;
 async function generateDailyVerse() {
   try {
     const MAX_TRIES = 20;
-    //const today = DateTime.now().setZone('America/Toronto').toISODate();
-    const today = DateTime.now().setZone('America/Toronto').plus({ days: 2 }).toISODate();
+    const today = DateTime.now().setZone('America/Toronto').toISODate(); // ← daily key (no test offset)
 
     let reference = null;
     let text = null;
@@ -248,12 +252,28 @@ async function generateDailyVerse() {
       translation: 'WEB',
     };
 
-    const publicDir = path.join(process.cwd(), 'public');
-    const dailyPath = path.join(publicDir, 'daily.json');
+    // ---- paths ----
+    const publicDir    = path.join(process.cwd(), 'public');
+    const dailyPath    = path.join(publicDir, 'daily.json');
     const lastGoodPath = path.join(publicDir, 'last-good.json');
-    const dailyJsPath = path.join(publicDir, 'daily.js');
+    const dailyJsPath  = path.join(publicDir, 'daily.js');
 
-    // atomic JSON writes
+    // ---- ARCHIVE: save snapshot + rolling index (last 30) ----
+    const archiveDir   = path.join(publicDir, 'archive');
+    const dayPath      = path.join(archiveDir, `${payload.date}.json`);
+    const indexPath    = path.join(archiveDir, 'index.json');
+
+    fs.mkdirSync(archiveDir, { recursive: true });
+    writeJsonAtomic(dayPath, payload);
+
+    let idx = [];
+    try { idx = JSON.parse(fs.readFileSync(indexPath, 'utf8')); } catch {}
+    idx = idx.filter(x => x.date !== payload.date);
+    idx.unshift({ date: payload.date, reference: payload.reference });
+    idx = idx.slice(0, 30);
+    writeJsonAtomic(indexPath, idx);
+
+    // ---- atomic JSON writes for "today" + last-good ----
     writeJsonAtomic(dailyPath, payload);
     writeJsonAtomic(lastGoodPath, payload);
 
