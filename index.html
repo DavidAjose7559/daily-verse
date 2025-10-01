@@ -23,6 +23,9 @@
       <div class="actions">
         <button id="copyBtn" class="btn">Copy Verse</button>
         <button id="shareBtn" class="btn btn-ghost">Share</button>
+        <!-- New: archive navigation -->
+        <button id="prevBtn" class="btn btn-ghost">Yesterday</button>
+        <button id="todayBtn" class="btn" style="display:none">Today</button>
       </div>
     </header>
 
@@ -49,6 +52,8 @@
       translation: document.getElementById('translation'),
       copyBtn:     document.getElementById('copyBtn'),
       shareBtn:    document.getElementById('shareBtn'),
+      prevBtn:     document.getElementById('prevBtn'),
+      todayBtn:    document.getElementById('todayBtn'),
       debug:       document.getElementById('debug'),
     };
 
@@ -63,20 +68,48 @@
     }
 
     // ==============================
-    // Fetch + render
+    // Rendering helpers
+    // ==============================
+    function renderPayload(d) {
+      els.date.textContent        = `Date: ${d.date || '—'}`;
+      els.reference.textContent   = d.reference || 'Daily Verse';
+      els.text.textContent        = d.text || '';
+      els.translation.textContent = d.translation || 'WEB';
+      els.context.innerHTML       = stripScripts(d.context);
+    }
+
+    // Toronto date helpers (YYYY-MM-DD without libs)
+    function torontoISO(date = new Date()) {
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    }
+    function torontoYesterdayISO() {
+      const [y, m, d] = torontoISO().split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() - 1);
+      const yy = dt.getUTCFullYear();
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getUTCDate()).padStart(2, '0');
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    // ==============================
+    // Fetch + render (Today)
     // ==============================
     async function loadDaily() {
       try {
         const res = await fetch(`${API_BASE}/api/daily`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json();
-
-        els.date.textContent = `Date: ${d.date || '—'}`;
-        els.reference.textContent = d.reference || 'Daily Verse';
-        els.text.textContent = d.text || '';
-        els.translation.textContent = d.translation || 'WEB';
-        els.context.innerHTML = stripScripts(d.context);
-
+        renderPayload(d);
+        // toggle nav buttons for "today" view
+        els.todayBtn.style.display = 'none';
+        els.prevBtn.style.display = 'inline-block';
+        els.prevBtn.disabled = false;
         // Uncomment for debugging:
         // els.debug.style.display = 'block';
         // els.debug.textContent = JSON.stringify(d.rating, null, 2);
@@ -85,6 +118,24 @@
           els.debug.style.display = 'block';
           els.debug.textContent = `Not ready (${e.message})`;
         }
+      }
+    }
+
+    // ==============================
+    // Fetch + render (Yesterday)
+    // ==============================
+    async function loadYesterday() {
+      const y = torontoYesterdayISO();
+      try {
+        const res = await fetch(`${API_BASE}/api/archive/${y}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`No archive for ${y}`);
+        const d = await res.json();
+        renderPayload(d);
+        // toggle nav buttons for "yesterday" view
+        els.prevBtn.style.display = 'none';
+        els.todayBtn.style.display = 'inline-block';
+      } catch (e) {
+        alert('No saved verse for yesterday yet.'); // could be the first day running
       }
     }
 
@@ -112,11 +163,26 @@
       }
     });
 
+    // Archive nav
+    els.prevBtn.addEventListener('click', loadYesterday);
+    els.todayBtn.addEventListener('click', loadDaily);
+
+    // On load, disable "Yesterday" if no archive yet
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/archive`, { cache: 'no-store' });
+        const list = res.ok ? await res.json() : [];
+        const hasYesterday = list.some(x => x.date === torontoYesterdayISO());
+        if (!hasYesterday) els.prevBtn.disabled = true;
+      } catch {
+        els.prevBtn.disabled = true;
+      }
+    })();
+
     // ==============================
     // Refresh at next midnight (Toronto)
     // ==============================
     function msUntilNextMidnightToronto() {
-      // Use Intl to get Toronto wall-clock date/time parts
       const now = new Date();
       const fmt = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Toronto',
@@ -125,7 +191,6 @@
         hour12: false
       });
       const parts = Object.fromEntries(fmt.formatToParts(now).map(p => [p.type, p.value]));
-      // Build a Date from those parts (as if local); we only need the delta to next midnight
       const torontoNow = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`);
       const next = new Date(torontoNow);
       next.setDate(next.getDate() + 1);
