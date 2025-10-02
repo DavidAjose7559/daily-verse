@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Verse — Archive</title>
 
+  <!-- Plausible Analytics -->
+  <script defer data-domain="davidajose7559.github.io" src="https://plausible.io/js/script.js"></script>
+  <script>
+    window.plausible = window.plausible || function(){(window.plausible.q=window.plausible.q||[]).push(arguments)};
+  </script>
+
   <!-- Basic SEO -->
   <meta name="description" content="Browse the last 30 days of Daily Verse with faithful context and explanation." />
   <link rel="canonical" href="https://davidajose7559.github.io/daily-verse/archive.html" />
@@ -48,13 +54,8 @@
     .btn:hover { filter: brightness(0.98); }
     .empty { padding: 1rem; border: 1px dashed var(--border,#e5e7eb); border-radius: 12px; text-align:center; color: var(--muted); background: var(--bg); }
     .error { color: #b00020; }
-    @media (prefers-color-scheme: dark) {
-      .error { color: #ff637d; }
-    }
-    @media (max-width: 640px) {
-      .container { margin: 20px auto; }
-      .toolbar .btn { width: 100%; }
-    }
+    @media (prefers-color-scheme: dark) { .error { color: #ff637d; } }
+    @media (max-width: 640px) { .container { margin: 20px auto; } .toolbar .btn { width: 100%; } }
   </style>
 </head>
 <body>
@@ -168,6 +169,25 @@
       }
     }
 
+    // Fire once on load so you can segment Archive page traffic
+    plausible('View', { props: { page: 'archive' }});
+
+    // Track clicks on archive cards (captures the date from the link)
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('a[href]');
+      if (!a) return;
+      const url = new URL(a.href);
+      const date = url.searchParams.get('date');
+      if (date) plausible('Open Archived Day', { props: { date }});
+    });
+
+    // Track theme toggles on this page
+    document.getElementById('themeBtn')?.addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      plausible('Theme Toggle', { props: { page: 'archive', theme: next }});
+    });
+
+    // Load the archive list
     loadArchive();
   </script>
 </body>
