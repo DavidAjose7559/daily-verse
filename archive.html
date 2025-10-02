@@ -12,7 +12,7 @@
 
   <!-- Open Graph -->
   <meta property="og:title" content="Daily Verse — Archive" />
-  <meta property="og:description" content="See the last 30 days of verses, each with a short, faithful explanation." />
+  <meta property="og:description" content="See the last 30 days of verses, each with a short explanation." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://davidajose7559.github.io/daily-verse/archive.html" />
   <meta property="og:image" content="https://davidajose7559.github.io/daily-verse/DA.png" />
@@ -29,11 +29,11 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="DA.png">
 
-  <!-- Site CSS (includes the dark-mode variables) -->
+  <!-- Site CSS -->
   <link rel="stylesheet" href="style.css" />
 
   <style>
-    /* tiny layout helpers (works with your existing CSS variables) */
+    /* tiny layout helpers */
     .container { max-width: 860px; margin: 60px auto; padding: 1.25rem; background: var(--card); border-radius: 12px; }
     .header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
     .title { font-size: clamp(1.25rem, 2vw, 1.6rem); font-weight: 700; color: var(--brand); }
@@ -115,7 +115,7 @@
     const $status  = document.getElementById('status');
 
     function linkForDate(iso) {
-      // Deep link back to your main page with ?date=YYYY-MM-DD
+      // Deep link back to main page with ?date=YYYY-MM-DD
       const base = location.hostname.endsWith('github.io')
         ? (location.origin + location.pathname.replace(/archive\.html$/, ''))
         : (location.origin + '/');
