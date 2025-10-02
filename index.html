@@ -71,6 +71,21 @@
 
   <script>
     // ==============================
+    // Toast helper
+    // ==============================
+    function toast(msg, ms = 1600) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      requestAnimationFrame(() => t.classList.add('show'));
+      setTimeout(() => {
+        t.classList.remove('show');
+        t.addEventListener('transitionend', () => t.remove(), { once: true });
+      }, ms);
+    }
+
+    // ==============================
     // Theme toggle
     // ==============================
     const THEME_KEY = 'dv_theme';
@@ -192,11 +207,10 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json();
         renderPayload(d);
-        // toggle nav buttons for "today" view
         els.todayBtn.style.display = 'none';
         els.prevBtn.style.display  = 'inline-block';
         els.prevBtn.disabled = false;
-        setQueryDate(null); // clear deep link when on today
+        setQueryDate(null);
       } catch (e) {
         if (els.debug) {
           els.debug.style.display = 'block';
@@ -214,16 +228,14 @@
         if (!res.ok) throw new Error(`No archive for ${dateIso}`);
         const d = await res.json();
         renderPayload(d);
-        // toggle nav buttons for "archive" view
         els.prevBtn.style.display  = 'none';
         els.todayBtn.style.display = 'inline-block';
-        setQueryDate(dateIso); // set deep link
+        setQueryDate(dateIso);
       } catch (e) {
-        alert(`No saved verse for ${dateIso}.`);
+        toast(`No saved verse for ${dateIso}.`);
       }
     }
 
-    // Convenience for Yesterday
     async function loadYesterday() {
       const y = torontoYesterdayISO();
       await loadArchive(y);
@@ -237,9 +249,9 @@
       try {
         await navigator.clipboard.writeText(content);
         plausible('Copy Verse', { props: { date: getQueryDate() || 'today' }});
-        alert('Verse copied!');
+        toast('Verse copied!');
       } catch {
-        alert('Copy failed');
+        toast('Copy failed');
       }
     });
 
@@ -255,12 +267,12 @@
         try {
           await navigator.clipboard.writeText(`${content}\n${url}`);
           plausible('Share', { props: { method: 'clipboard', date: getQueryDate() || 'today' }});
-          alert('Copied verse + link!');
-        } catch { alert('Sharing not supported in this browser'); }
+          toast('Copied verse + link!');
+        } catch { toast('Sharing not supported in this browser'); }
       }
     });
 
-    // Archive nav (with analytics)
+    // Archive nav
     els.prevBtn.addEventListener('click', async () => {
       plausible('Navigate', { props: { to: 'yesterday' }});
       await loadYesterday();
@@ -270,7 +282,7 @@
       await loadDaily();
     });
 
-    // On load, disable "Yesterday" if no archive yet
+    // On load, disable Yesterday if no archive yet
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/api/archive`, { cache: 'no-store' });
@@ -282,9 +294,7 @@
       }
     })();
 
-    // ==============================
-    // Init: deep link or today
-    // ==============================
+    // Init
     (async function init() {
       const qd = getQueryDate();
       if (qd) {
@@ -302,16 +312,12 @@
       await loadDaily();
     })();
 
-    // ==============================
     // Track initial view mode
-    // ==============================
     (function trackInitialView() {
       plausible('View', { props: { mode: getQueryDate() ? 'archive' : 'today' }});
     })();
 
-    // ==============================
     // Refresh at next midnight (Toronto)
-    // ==============================
     function msUntilNextMidnightToronto() {
       const now = new Date();
       const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -327,8 +333,6 @@
       next.setHours(0, 0, 0, 0);
       return next - torontoNow;
     }
-
-    // Refresh once at next midnight, then every 24h
     setTimeout(() => {
       if (!getQueryDate()) {
         loadDaily();
