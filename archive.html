@@ -77,6 +77,19 @@
   </div>
 
   <script>
+    // Toast helper (uses .toast styles from style.css)
+    function toast(msg, ms = 1600) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      requestAnimationFrame(() => t.classList.add('show'));
+      setTimeout(() => {
+        t.classList.remove('show');
+        t.addEventListener('transitionend', () => t.remove(), { once: true });
+      }, ms);
+    }
+
     // ==============================
     // Theme toggle (same as index)
     // ==============================
