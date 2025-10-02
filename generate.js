@@ -9,7 +9,8 @@
 //   public/archive/YYYY-MM-DD.json
 //   public/archive/index.json
 //
-// Env: OPENAI_API_KEY
+// Env: OPENAI_API_KEY, NLT_API_KEY (optional: 'TEST' works for anonymous)
+//
 // Deps: axios, luxon, openai
 
 const fs = require('fs');
@@ -124,13 +125,38 @@ function pickReferenceFor(dateISO, offset = 0) {
   return `${book} ${chapter}:${verse}`;
 }
 
-// ---------- Bible API fetch (with retries) ----------
+// ---------- helpers ----------
+function htmlToPlainText(html) {
+  // Very basic HTML → text for the single-verse excerpt
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '')     // strip tags
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n\s+/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+// ---------- Bible API fetch (NLT only) ----------
+const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing okay but rate-limited
+// docs indicate /api/passages?ref=...&version=NLT[&key=...]
 async function fetchVerseText(reference) {
-  const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=web`;
+  const url = 'https://api.nlt.to/api/passages';
+  const params = {
+    ref: reference.replace(/\s+/g, '.'), // e.g., "John 3:16" → "John.3:16" per examples
+    version: 'NLT',
+    key: NLT_API_KEY,
+  };
   return await withRetries(async () => {
-    const response = await axios.get(url, { timeout: 15000 });
-    const text = String(response?.data?.text || '').trim();
-    if (!text) throw new Error('empty_bible_text');
+    const response = await axios.get(url, { params, timeout: 15000 });
+    // API returns an HTML excerpt for the passage(s)
+    // Example shape is HTML string or object with 'html'—normalize both:
+    const data = response?.data;
+    const html = typeof data === 'string'
+      ? data
+      : (data?.html || data?.text || '');
+    const text = htmlToPlainText(html);
+    if (!text) throw new Error('empty_nlt_text');
     return text;
   }, { tries: 3, delayMs: 700 });
 }
@@ -213,8 +239,7 @@ Text: "${text}"`;
 async function generateDailyVerse() {
   try {
     const MAX_TRIES = 20;
-    const today = DateTime.now().setZone('America/Toronto').toISODate(); // ← daily key (no test offset)
-    //const today = DateTime.now().setZone('America/Toronto').plus({ days: 1 }).toISODate();
+    const today = DateTime.now().setZone('America/Toronto').toISODate(); // daily key
 
     let reference = null;
     let text = null;
@@ -250,7 +275,7 @@ async function generateDailyVerse() {
       text,
       context,
       rating,
-      translation: 'WEB',
+      translation: 'NLT',
     };
 
     // ---- paths ----
