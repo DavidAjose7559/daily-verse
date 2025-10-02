@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const { DateTime } = require('luxon');
 const generateVerse = require('./generate'); // writes public/daily.json + last-good.json + daily.js (+ archive)
+const compression = require('compression');
+const morgan = require('morgan');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +17,9 @@ fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 
 // --- basic hardening ---
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // respect reverse proxy (Render) for IP/proto
+app.use(compression());    // gzip/br compression for faster responses
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev')); // access logs
 
 // Content Security Policy (adjust if you add new domains)
 app.use((req, res, next) => {
