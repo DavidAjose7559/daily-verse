@@ -5,8 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Daily Verse</title>
 
+  <!-- Plausible Analytics -->
+  <script defer data-domain="davidajose7559.github.io" src="https://plausible.io/js/script.js"></script>
+  <script>
+    // helper so we can call plausible('EventName', {props:{...}})
+    window.plausible = window.plausible || function(){(window.plausible.q=window.plausible.q||[]).push(arguments)};
+  </script>
+
   <!-- Basic SEO -->
-  <meta name="description" content="Daily Bible verse with shortcontext. Be encouraged and grow in the Word every day.">
+  <meta name="description" content="Daily Bible verse with short context. Be encouraged and grow in the Word every day.">
   <link rel="canonical" href="https://davidajose7559.github.io/daily-verse/">
   <meta name="theme-color" content="#2563eb">
 
@@ -223,12 +230,13 @@
     }
 
     // ==============================
-    // Copy & Share
+    // Copy & Share (with analytics)
     // ==============================
     els.copyBtn.addEventListener('click', async () => {
       const content = `${els.reference.textContent} — ${els.text.textContent}`;
       try {
         await navigator.clipboard.writeText(content);
+        plausible('Copy Verse', { props: { date: getQueryDate() || 'today' }});
         alert('Verse copied!');
       } catch {
         alert('Copy failed');
@@ -237,24 +245,30 @@
 
     els.shareBtn.addEventListener('click', async () => {
       const content = `${els.reference.textContent} — ${els.text.textContent}`;
-      const url = location.href; // includes ?date=... when on an archive day
+      const url = location.href;
       if (navigator.share) {
         try {
           await navigator.share({ title: 'Daily Verse', text: content, url });
-        } catch { /* user cancelled or share failed */ }
+          plausible('Share', { props: { method: 'web-share', date: getQueryDate() || 'today' }});
+        } catch {}
       } else {
         try {
           await navigator.clipboard.writeText(`${content}\n${url}`);
+          plausible('Share', { props: { method: 'clipboard', date: getQueryDate() || 'today' }});
           alert('Copied verse + link!');
-        } catch {
-          alert('Sharing not supported in this browser');
-        }
+        } catch { alert('Sharing not supported in this browser'); }
       }
     });
 
-    // Archive nav
-    els.prevBtn.addEventListener('click', loadYesterday);
-    els.todayBtn.addEventListener('click', loadDaily);
+    // Archive nav (with analytics)
+    els.prevBtn.addEventListener('click', async () => {
+      plausible('Navigate', { props: { to: 'yesterday' }});
+      await loadYesterday();
+    });
+    els.todayBtn.addEventListener('click', async () => {
+      plausible('Navigate', { props: { to: 'today' }});
+      await loadDaily();
+    });
 
     // On load, disable "Yesterday" if no archive yet
     (async () => {
@@ -274,7 +288,6 @@
     (async function init() {
       const qd = getQueryDate();
       if (qd) {
-        // try to load that archived day; if missing, fall back to today
         try {
           const res = await fetch(`${API_BASE}/api/archive/${qd}`, { cache: 'no-store' });
           if (res.ok) {
@@ -287,6 +300,13 @@
         } catch {}
       }
       await loadDaily();
+    })();
+
+    // ==============================
+    // Track initial view mode
+    // ==============================
+    (function trackInitialView() {
+      plausible('View', { props: { mode: getQueryDate() ? 'archive' : 'today' }});
     })();
 
     // ==============================
@@ -310,7 +330,6 @@
 
     // Refresh once at next midnight, then every 24h
     setTimeout(() => {
-      // Only refresh if we're on "today" view (no ?date param)
       if (!getQueryDate()) {
         loadDaily();
       }
