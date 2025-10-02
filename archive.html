@@ -4,25 +4,56 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Verse — Archive</title>
+
+  <!-- Basic SEO -->
+  <meta name="description" content="Browse the last 30 days of Daily Verse with faithful context and explanation." />
+  <link rel="canonical" href="https://davidajose7559.github.io/daily-verse/archive.html" />
+  <meta name="theme-color" content="#2563eb" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Daily Verse — Archive" />
+  <meta property="og:description" content="See the last 30 days of verses, each with a short, faithful explanation." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://davidajose7559.github.io/daily-verse/archive.html" />
+  <meta property="og:image" content="https://davidajose7559.github.io/daily-verse/DA.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Daily Verse — Archive" />
+  <meta name="twitter:description" content="Browse recent verses with context and encouragement." />
+  <meta name="twitter:image" content="https://davidajose7559.github.io/daily-verse/DA.png" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="DA.png">
+
+  <!-- Site CSS (includes the dark-mode variables) -->
   <link rel="stylesheet" href="style.css" />
+
   <style>
     /* tiny layout helpers (works with your existing CSS variables) */
-    .container { max-width: 860px; margin: 0 auto; padding: 1.25rem; }
+    .container { max-width: 860px; margin: 60px auto; padding: 1.25rem; background: var(--card); border-radius: 12px; }
     .header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
-    .title { font-size: clamp(1.25rem, 2vw, 1.6rem); font-weight: 700; }
-    .muted { opacity: .7; font-size: .95rem; }
+    .title { font-size: clamp(1.25rem, 2vw, 1.6rem); font-weight: 700; color: var(--brand); }
+    .muted { opacity: .8; font-size: .95rem; color: var(--muted); }
     .list { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: .75rem; margin-top: 1rem; }
-    .card { border: 1px solid var(--border, #e5e7eb); border-radius: 12px; padding: .85rem; background: var(--panel, #fff); }
-    .card a { text-decoration: none; }
-    .card h3 { margin: 0 0 .35rem 0; font-size: 1rem; }
-    .card p { margin: 0; font-size: .92rem; opacity: .8; }
+    .card { border: 1px solid var(--border, #e5e7eb); border-radius: 12px; padding: .85rem; background: var(--card); }
+    .card a { text-decoration: none; color: inherit; }
+    .card h3 { margin: 0 0 .35rem 0; font-size: 1rem; color: var(--text); }
+    .card p { margin: 0; font-size: .92rem; opacity: .9; color: var(--muted); }
     .toolbar { display:flex; gap:.5rem; align-items:center; }
-    .btn { padding: .5rem .75rem; border-radius: 10px; border: 1px solid var(--border,#e5e7eb); background: var(--panel,#fff); cursor:pointer; }
+    .btn { padding: .5rem .75rem; border-radius: 10px; border: 1px solid var(--border,#e5e7eb); background: var(--bg); color: var(--text); cursor:pointer; }
     .btn:hover { filter: brightness(0.98); }
-    .empty { padding: 1rem; border: 1px dashed var(--border,#e5e7eb); border-radius: 12px; text-align:center; }
+    .empty { padding: 1rem; border: 1px dashed var(--border,#e5e7eb); border-radius: 12px; text-align:center; color: var(--muted); background: var(--bg); }
     .error { color: #b00020; }
     @media (prefers-color-scheme: dark) {
       .error { color: #ff637d; }
+    }
+    @media (max-width: 640px) {
+      .container { margin: 20px auto; }
+      .toolbar .btn { width: 100%; }
     }
   </style>
 </head>
@@ -35,6 +66,8 @@
       </div>
       <div class="toolbar">
         <a class="btn" href="./">Today</a>
+        <!-- Dark mode toggle -->
+        <button id="themeBtn" class="btn" aria-label="Toggle theme">🌙</button>
       </div>
     </header>
 
@@ -43,7 +76,37 @@
   </div>
 
   <script>
-    // Use Render API when on GitHub Pages; use same-origin if hosted on Render
+    // ==============================
+    // Theme toggle (same as index)
+    // ==============================
+    const THEME_KEY = 'dv_theme';
+    function getPreferredTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b1020' : '#2563eb');
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    }
+    applyTheme(getPreferredTheme());
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      if (!localStorage.getItem(THEME_KEY)) applyTheme(e.matches ? 'dark' : 'light');
+    });
+    document.getElementById('themeBtn')?.addEventListener('click', toggleTheme);
+
+    // ==============================
+    // API base (Render on Pages, same-origin on Render)
+    // ==============================
     const API_BASE = location.hostname.endsWith('github.io')
       ? 'https://daily-verse-viewer.onrender.com'
       : '';
@@ -53,7 +116,6 @@
 
     function linkForDate(iso) {
       // Deep link back to your main page with ?date=YYYY-MM-DD
-      // If your index page has a different path, adjust the URL below.
       const base = location.hostname.endsWith('github.io')
         ? (location.origin + location.pathname.replace(/archive\.html$/, ''))
         : (location.origin + '/');
@@ -62,15 +124,16 @@
       return url.toString();
     }
 
-    function el(tag, attrs={}, children=[]) {
+    function el(tag, attrs = {}, children = []) {
       const node = document.createElement(tag);
-      Object.entries(attrs).forEach(([k,v]) => {
+      Object.entries(attrs).forEach(([k, v]) => {
         if (k === 'class') node.className = v;
         else if (k === 'html') node.innerHTML = v;
         else node.setAttribute(k, v);
       });
       (Array.isArray(children) ? children : [children])
-        .filter(Boolean).forEach(c => node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+        .filter(Boolean)
+        .forEach(c => node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
       return node;
     }
 
@@ -83,14 +146,14 @@
 
         $content.innerHTML = '';
         if (!list || list.length === 0) {
-          $content.appendChild(el('div', {class:'empty'}, 'No archive yet. Check back tomorrow!'));
+          $content.appendChild(el('div', { class: 'empty' }, 'No archive yet. Check back tomorrow!'));
           $status.textContent = '';
           return;
         }
 
         for (const item of list) {
           const href = linkForDate(item.date);
-          const card = el('article', {class: 'card'}, [
+          const card = el('article', { class: 'card' }, [
             el('a', { href }, [
               el('h3', {}, item.date),
               el('p', {}, item.reference || '')
@@ -100,7 +163,7 @@
         }
         $status.textContent = '';
       } catch (e) {
-        $status.innerHTML = `<span class="error">Failed to load archive.</span>`;
+        $status.innerHTML = '<span class="error">Failed to load archive.</span>';
         console.error(e);
       }
     }
