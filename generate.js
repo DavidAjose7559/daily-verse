@@ -9,7 +9,7 @@
 //   public/archive/YYYY-MM-DD.json
 //   public/archive/index.json
 //
-// Env: OPENAI_API_KEY, NLT_API_KEY (optional: 'TEST' works for anonymous)
+// Env: OPENAI_API_KEY, NLT_API_KEY (you can start with 'TEST')
 //
 // Deps: axios, luxon, openai
 
@@ -127,9 +127,10 @@ function pickReferenceFor(dateISO, offset = 0) {
 
 // ---------- helpers ----------
 function htmlToPlainText(html) {
-  // Very basic HTML → text for the single-verse excerpt
+  // Very basic HTML → text for the passage excerpt
   return String(html || '')
     .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p>/gi, '\n\n')
     .replace(/<[^>]*>/g, '')     // strip tags
     .replace(/\s+\n/g, '\n')
     .replace(/\n\s+/g, '\n')
@@ -137,27 +138,46 @@ function htmlToPlainText(html) {
     .trim();
 }
 
+function cleanVerseText(text, reference) {
+  // Normalize whitespace
+  let t = String(text || '').replace(/\s+/g, ' ').trim();
+
+  // 1) Remove provider prefix like "NLT API", "NLT:" at the very start
+  t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
+
+  // 2) Remove duplicated reference at the start, e.g., "John 20:16", "John 20:16 –", "John 20:16,"
+  const esc = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape for regex
+  const refStart = new RegExp(`^${esc}\\s*[–—,:-]*\\s*`, 'i');
+  t = t.replace(refStart, '');
+
+  // 3) Remove a lone verse number at the very start, e.g., "16 " or "[16] " or "(16) "
+  t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
+
+  // 4) Tidy any leftover spaces around punctuation/quotes
+  t = t.replace(/\s+([,.;:!?])/g, '$1').replace(/“\s+/g, '“').replace(/\s+”/g, '”');
+
+  return t.trim();
+}
+
 // ---------- Bible API fetch (NLT only) ----------
-const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing okay but rate-limited
-// docs indicate /api/passages?ref=...&version=NLT[&key=...]
+const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
 async function fetchVerseText(reference) {
   const url = 'https://api.nlt.to/api/passages';
   const params = {
-    ref: reference.replace(/\s+/g, '.'), // e.g., "John 3:16" → "John.3:16" per examples
+    ref: reference.replace(/\s+/g, '.'), // "John 3:16" → "John.3:16"
     version: 'NLT',
     key: NLT_API_KEY,
   };
   return await withRetries(async () => {
     const response = await axios.get(url, { params, timeout: 15000 });
-    // API returns an HTML excerpt for the passage(s)
-    // Example shape is HTML string or object with 'html'—normalize both:
     const data = response?.data;
     const html = typeof data === 'string'
       ? data
       : (data?.html || data?.text || '');
-    const text = htmlToPlainText(html);
-    if (!text) throw new Error('empty_nlt_text');
-    return text;
+    const plain = htmlToPlainText(html);
+    const cleaned = cleanVerseText(plain, reference);
+    if (!cleaned) throw new Error('empty_nlt_text');
+    return cleaned;
   }, { tries: 3, delayMs: 700 });
 }
 
