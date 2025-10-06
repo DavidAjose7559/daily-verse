@@ -242,3 +242,20 @@ a:hover { text-decoration: underline; }
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* Footer / Attribution */
+footer {
+  margin-top: 3rem;
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--muted);
+  opacity: 0.8;
+}
+footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+footer a:hover {
+  text-decoration: underline;
+}
