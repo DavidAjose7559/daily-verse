@@ -132,6 +132,7 @@ function htmlToPlainText(html) {
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>\s*<p>/gi, '\n\n')
     .replace(/<[^>]*>/g, '')     // strip tags
+    .replace(/\u00A0/g, ' ')     // nbsp → space
     .replace(/\s+\n/g, '\n')
     .replace(/\n\s+/g, '\n')
     .replace(/[ \t]+/g, ' ')
@@ -139,35 +140,42 @@ function htmlToPlainText(html) {
 }
 
 function cleanVerseText(text, reference) {
-  // Normalize whitespace first
-  let t = String(text || '').replace(/\s+/g, ' ').trim();
+  let t = String(text || '').trim();
 
-  // 1) Strip provider prefix like "NLT API" or leading "NLT:"
-  t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
+  // Repeat the cleanup twice to catch sequences like "NLT … NLT 19…"
+  for (let i = 0; i < 2; i++) {
+    // Normalize whitespace each pass
+    t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // 2) Strip duplicated reference at the very start (e.g., "John 20:16 –")
-  const esc = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const refStart = new RegExp(`^${esc}\\s*[–—,:-]*\\s*`, 'i');
-  t = t.replace(refStart, '');
+    // (1) Strip provider label(s) at the very start: "NLT API", "NLT:"
+    t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-  // 3) Remove a leading verse number even when it's glued to the next word,
-  //    e.g., "19Husbands…" or "[19]Husbands…" or "(19)Husbands…"
-  //    3a) digits with NO whitespace before a letter/quote
-  t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
-  //    3b) digits followed by whitespace (fallback)
-  t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
+    // (2) Strip duplicated reference at the start, e.g., "John 20:16 –" / ":" / ","
+    const esc = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const refStart = new RegExp(`^${esc}\\s*[–—,:-]*\\s*`, 'i');
+    t = t.replace(refStart, '');
 
-  // 4) Tidy spaces around punctuation/quotes
-  t = t
-    .replace(/\s+([,.;:!?])/g, '$1')
-    .replace(/“\s+/g, '“')
-    .replace(/\s+”/g, '”')
-    .replace(/\s+([’'])/g, '$1')
-    .replace(/([‘'])\s+/g, '$1');
+    // (3) Strip "NLT <digits>" if it reappears after removing the reference
+    t = t.replace(/^NLT\s*\d{1,3}\s*/i, '');
 
-  return t.trim();
+    // (4) Strip a leading verse number even if it's glued to the first word
+    //     Examples: "19Husbands…", "[19]Husbands…", "(19)Husbands…"
+    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
+    // …and also if there *is* a space after the number:
+    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
+
+    // (5) Tidy spaces around punctuation/quotes
+    t = t
+      .replace(/\s+([,.;:!?])/g, '$1')
+      .replace(/“\s+/g, '“')
+      .replace(/\s+”/g, '”')
+      .replace(/\s+([’'])/g, '$1')
+      .replace(/([‘'])\s+/g, '$1')
+      .trim();
+  }
+
+  return t;
 }
-
 
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
