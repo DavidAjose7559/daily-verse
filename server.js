@@ -44,6 +44,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// --- security headers (simple best-practice set) ---
+app.use((req, res, next) => {
+  // Force HTTPS on future visits (HSTS)
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Keep referrers minimal
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Disallow embedding in iframes
+  res.setHeader('X-Frame-Options', 'DENY');
+  next();
+});
+
+
 // --- granular caching: long cache for static, no-store for API ---
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
