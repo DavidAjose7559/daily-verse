@@ -38,6 +38,9 @@
   <!-- Site CSS -->
   <link rel="stylesheet" href="style.css" />
 
+  <!-- JSON-LD placeholder -->
+  <script id="ldjson" type="application/ld+json"></script>
+
   <style>
     /* tiny layout helpers */
     .container { max-width: 860px; margin: 60px auto; padding: 1.25rem; background: var(--card); border-radius: 12px; }
@@ -75,6 +78,12 @@
     <section id="content" class="list" aria-live="polite"></section>
     <div id="status" class="muted" style="margin-top:.75rem;"></div>
   </div>
+
+  <footer>
+    Scripture quotations are from the <em>Holy Bible, New Living Translation</em> (NLT),
+    © Tyndale House Foundation. Used by permission of Tyndale House Publishers.
+    All rights reserved.
+  </footer>
 
   <script>
     // Toast helper (uses .toast styles from style.css)
@@ -151,6 +160,27 @@
       return node;
     }
 
+    // ==============================
+    // JSON-LD helper (ItemList of last 30)
+    // ==============================
+    function setLD_List(list) {
+      try {
+        const items = (list || []).map((it, idx) => ({
+          "@type": "ListItem",
+          "position": idx + 1,
+          "url": linkForDate(it.date),
+          "name": it.reference || it.date
+        }));
+        const payload = {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          "name": "Daily Verse Archive (last 30 days)",
+          "itemListElement": items
+        };
+        document.getElementById('ldjson').textContent = JSON.stringify(payload);
+      } catch {}
+    }
+
     async function loadArchive() {
       $status.textContent = 'Loading…';
       try {
@@ -162,6 +192,7 @@
         if (!list || list.length === 0) {
           $content.appendChild(el('div', { class: 'empty' }, 'No archive yet. Check back tomorrow!'));
           $status.textContent = '';
+          setLD_List([]);
           return;
         }
 
@@ -176,6 +207,9 @@
           $content.appendChild(card);
         }
         $status.textContent = '';
+
+        // JSON-LD for archive list
+        setLD_List(list);
       } catch (e) {
         $status.innerHTML = '<span class="error">Failed to load archive.</span>';
         console.error(e);
@@ -203,10 +237,4 @@
     loadArchive();
   </script>
 </body>
-    <footer>
-    Scripture quotations are from the <em>Holy Bible, New Living Translation</em> (NLT),
-    © Tyndale House Foundation. Used by permission of Tyndale House Publishers.
-    All rights reserved.
-  </footer>
-
 </html>
