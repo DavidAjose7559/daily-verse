@@ -41,6 +41,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css" />
+
+  <!-- JSON-LD placeholder (populated at runtime) -->
+  <script id="ldjson" type="application/ld+json"></script>
 </head>
 <body>
   <main class="container">
@@ -68,12 +71,11 @@
 
     <pre id="debug" style="display:none;"></pre>
   </main>
-      <footer>
-      Scripture quotations are from the <em>Holy Bible, New Living Translation</em> (NLT),
-      © Tyndale House Foundation. Used by permission of Tyndale House Publishers.
-      All rights reserved.
-    </footer>
-
+  <footer>
+    Scripture quotations are from the <em>Holy Bible, New Living Translation</em> (NLT),
+    © Tyndale House Foundation. Used by permission of Tyndale House Publishers.
+    All rights reserved.
+  </footer>
 
   <script>
     // ==============================
@@ -89,6 +91,29 @@
         t.classList.remove('show');
         t.addEventListener('transitionend', () => t.remove(), { once: true });
       }, ms);
+    }
+
+    // ==============================
+    // JSON-LD helper (CreativeWork)
+    // ==============================
+    function setLD(d) {
+      try {
+        const payload = {
+          "@context": "https://schema.org",
+          "@type": "CreativeWork",
+          "name": `${d.reference} (${d.translation || 'NLT'})`,
+          "text": d.text,
+          "datePublished": d.date,
+          "inLanguage": "en",
+          "isFamilyFriendly": true,
+          "isPartOf": {
+            "@type": "WebSite",
+            "name": "Daily Verse",
+            "url": "https://davidajose7559.github.io/daily-verse/"
+          }
+        };
+        document.getElementById('ldjson').textContent = JSON.stringify(payload);
+      } catch {}
     }
 
     // ==============================
@@ -157,6 +182,8 @@
       els.text.textContent        = d.text || '';
       els.translation.textContent = d.translation || 'WEB';
       els.context.innerHTML       = stripScripts(d.context || '');
+      // JSON-LD
+      setLD(d);
     }
 
     // ==============================
