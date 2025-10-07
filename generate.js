@@ -142,29 +142,36 @@ function htmlToPlainText(html) {
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
-  // Repeat the cleanup twice to catch sequences like "NLT … NLT 19…"
+  // Run the cleanup twice to catch sequences
   for (let i = 0; i < 2; i++) {
-    // Normalize whitespace each pass
+    // Normalize whitespace per pass
     t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // (1) Strip provider label(s) at the very start: "NLT API", "NLT:"
+    // (1) Strip provider labels at the very start
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-    // (2) Strip duplicated reference at the start, e.g., "John 20:16 –" / ":" / ","
-    const esc = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const refStart = new RegExp(`^${esc}\\s*[–—,:-]*\\s*`, 'i');
-    t = t.replace(refStart, '');
+    // (2) Strip duplicated reference in multiple formats at the very start
+    // Parse "Book Chapter:Verse"
+    const m = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
+    if (m) {
+      const [, book, chap, verse] = m;
+      // Match: "Book 3:16", "Book 3 16", "Book 3-16" with optional space/punct after
+      const refRe = new RegExp(
+        `^${book.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\s+${chap}(?::|\\s+|-)${verse}\\s*[–—,:-]*\\s*`,
+        'i'
+      );
+      t = t.replace(refRe, '');
+    }
 
     // (3) Strip "NLT <digits>" if it reappears after removing the reference
     t = t.replace(/^NLT\s*\d{1,3}\s*/i, '');
 
-    // (4) Strip a leading verse number even if it's glued to the first word
-    //     Examples: "19Husbands…", "[19]Husbands…", "(19)Husbands…"
+    // (4) Strip a leading verse number even if glued to the first word: "19Husbands…"
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
-    // …and also if there *is* a space after the number:
+    // …or if there is a space after the number: "19 Husbands…"
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
 
-    // (5) Tidy spaces around punctuation/quotes
+    // (5) Tidy spaces
     t = t
       .replace(/\s+([,.;:!?])/g, '$1')
       .replace(/“\s+/g, '“')
@@ -176,6 +183,7 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
+
 
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
