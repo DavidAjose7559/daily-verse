@@ -154,6 +154,28 @@ app.get('/api/status', (_req, res) => {
    FRONTEND ROUTES
    ======================= */
 
+// robots.txt — allow all crawlers and link sitemap
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').send(
+    `User-agent: *
+Allow: /
+Sitemap: https://davidajose7559.github.io/daily-verse/sitemap.xml`
+  );
+});
+
+// sitemap.xml — basic site map for SEO
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://davidajose7559.github.io/daily-verse/</loc>
+  </url>
+  <url>
+    <loc>https://davidajose7559.github.io/daily-verse/archive.html</loc>
+  </url>
+</urlset>`);
+});
+
 // Redirect root to your GitHub Pages frontend (Option A)
 app.get('/', (_req, res) => {
   res.redirect('https://davidaajose7559.github.io/daily-verse/');
