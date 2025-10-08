@@ -142,36 +142,32 @@ function htmlToPlainText(html) {
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
-  // Run the cleanup twice to catch sequences
   for (let i = 0; i < 2; i++) {
-    // Normalize whitespace per pass
     t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 
     // (1) Strip provider labels at the very start
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-    // (2) Strip duplicated reference in multiple formats at the very start
-    // Parse "Book Chapter:Verse"
+    // (2) Strip duplicated reference and optional short heading
     const m = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
     if (m) {
       const [, book, chap, verse] = m;
-      // Match: "Book 3:16", "Book 3 16", "Book 3-16" with optional space/punct after
+      // Match "Book 4 Unity in the Body 1", "Book 4 1", "Book 4:1"
       const refRe = new RegExp(
-        `^${book.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\s+${chap}(?::|\\s+|-)${verse}\\s*[–—,:-]*\\s*`,
+        `^${book.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\s+${chap}(?:\\s+[A-Z][^0-9]{1,40}\\s+)?(?::|\\s+|-)${verse}\\s*[–—,:-]*\\s*`,
         'i'
       );
       t = t.replace(refRe, '');
     }
 
-    // (3) Strip "NLT <digits>" if it reappears after removing the reference
+    // (3) Strip "NLT <digits>" if it reappears
     t = t.replace(/^NLT\s*\d{1,3}\s*/i, '');
 
-    // (4) Strip a leading verse number even if glued to the first word: "19Husbands…"
+    // (4) Strip a leading verse number, glued or separated
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
-    // …or if there is a space after the number: "19 Husbands…"
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
 
-    // (5) Tidy spaces
+    // (5) Clean punctuation spacing
     t = t
       .replace(/\s+([,.;:!?])/g, '$1')
       .replace(/“\s+/g, '“')
@@ -183,6 +179,7 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
+
 
 
 // ---------- Bible API fetch (NLT only) ----------
