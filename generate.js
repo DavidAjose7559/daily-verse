@@ -142,32 +142,63 @@ function htmlToPlainText(html) {
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
-  for (let i = 0; i < 2; i++) {
-    t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+  // Parse the reference into parts (Book, Chapter, Verse)
+  const ref = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
+  const book = ref ? ref[1] : null;
+  const chap = ref ? ref[2] : null;
+  const vers = ref ? ref[3] : null;
 
-    // (1) Strip provider labels at the very start
+  // Helper: escape for RegExp
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Run two passes to catch chained patterns
+  for (let i = 0; i < 2; i++) {
+    // Normalize whitespace each pass
+    t = t.replace(/\u00A0/g, ' ')     // NBSP → space
+         .replace(/\s+/g, ' ')
+         .trim();
+
+    // (1) Strip provider/translation labels at the very start
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-    // (2) Strip duplicated reference and optional short heading
-    const m = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
-    if (m) {
-      const [, book, chap, verse] = m;
-      // Match "Book 4 Unity in the Body 1", "Book 4 1", "Book 4:1"
-      const refRe = new RegExp(
-        `^${book.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\s+${chap}(?:\\s+[A-Z][^0-9]{1,40}\\s+)?(?::|\\s+|-)${verse}\\s*[–—,:-]*\\s*`,
+    if (book && chap && vers) {
+      // (2a) Strip leading "Book chap:vers" (with punctuation after)
+      const pat1 = new RegExp(`^${esc(book)}\\s+${chap}\\s*:\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
+      t = t.replace(pat1, '');
+
+      // (2b) Strip leading "Book chap vers" (space instead of colon)
+      const pat2 = new RegExp(`^${esc(book)}\\s+${chap}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i');
+      t = t.replace(pat2, '');
+
+      // (2c) Strip leading "Book chap-vers" (dash instead of colon)
+      const pat3 = new RegExp(`^${esc(book)}\\s+${chap}\\s*-\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
+      t = t.replace(pat3, '');
+
+      // (2d) Strip leading "Book chap <Short Heading> vers"
+      // Heading heuristic: starts with capital letter, no digits, up to ~40 chars
+      const pat4 = new RegExp(
+        `^${esc(book)}\\s+${chap}(?:\\s+[A-Z][^0-9]{0,40}){1,4}\\s+${vers}\\s*[–—,:-]*\\s*`,
         'i'
       );
-      t = t.replace(refRe, '');
+      t = t.replace(pat4, '');
     }
 
-    // (3) Strip "NLT <digits>" if it reappears
+    // (3) Strip a leftover "NLT <digits>" prefix
     t = t.replace(/^NLT\s*\d{1,3}\s*/i, '');
 
-    // (4) Strip a leading verse number, glued or separated
-    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
-    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
+    // (4) Strip a single leading verse number (glued or spaced, optional brackets)
+    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, ''); // glued like "16For…"
+    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');               // spaced like "16 For…"
 
-    // (5) Clean punctuation spacing
+    // (5) Remove common footnote markers/daggers anywhere
+    //   - bracketed notes like [a], [b], [c1]
+    //   - daggers: † or ‡
+    //   - superscript letters/digits
+    t = t.replace(/\[[a-z]\d?\]/gi, '')
+         .replace(/[†‡]/g, '')
+         .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, ''); // superscripts
+
+    // (6) Tidy punctuation/quotes spacing
     t = t
       .replace(/\s+([,.;:!?])/g, '$1')
       .replace(/“\s+/g, '“')
@@ -179,6 +210,7 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
+
 
 
 
