@@ -142,63 +142,59 @@ function htmlToPlainText(html) {
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
-  // Parse the reference into parts (Book, Chapter, Verse)
+  // Parse "Book Chapter:Verse"
   const ref = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
   const book = ref ? ref[1] : null;
   const chap = ref ? ref[2] : null;
   const vers = ref ? ref[3] : null;
 
-  // Helper: escape for RegExp
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   // Run two passes to catch chained patterns
   for (let i = 0; i < 2; i++) {
-    // Normalize whitespace each pass
-    t = t.replace(/\u00A0/g, ' ')     // NBSP → space
-         .replace(/\s+/g, ' ')
-         .trim();
+    // Normalize whitespace
+    t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 
     // (1) Strip provider/translation labels at the very start
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
+    // (2) Strip duplicated reference in various formats at the very start
     if (book && chap && vers) {
-      // (2a) Strip leading "Book chap:vers" (with punctuation after)
-      const pat1 = new RegExp(`^${esc(book)}\\s+${chap}\\s*:\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
-      t = t.replace(pat1, '');
-
-      // (2b) Strip leading "Book chap vers" (space instead of colon)
-      const pat2 = new RegExp(`^${esc(book)}\\s+${chap}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i');
-      t = t.replace(pat2, '');
-
-      // (2c) Strip leading "Book chap-vers" (dash instead of colon)
-      const pat3 = new RegExp(`^${esc(book)}\\s+${chap}\\s*-\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
-      t = t.replace(pat3, '');
-
-      // (2d) Strip leading "Book chap <Short Heading> vers"
-      // Heading heuristic: starts with capital letter, no digits, up to ~40 chars
-      const pat4 = new RegExp(
-        `^${esc(book)}\\s+${chap}(?:\\s+[A-Z][^0-9]{0,40}){1,4}\\s+${vers}\\s*[–—,:-]*\\s*`,
-        'i'
-      );
-      t = t.replace(pat4, '');
+      // "Book 3:16"
+      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s*:\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
+      // "Book 3 16"
+      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
+      // "Book 3-16"
+      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s*-\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
+      // "Book 3 <ShortHeading> 16"
+      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}(?:\\s+[A-Z][^0-9]{0,40}){1,4}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
     }
 
-    // (3) Strip a leftover "NLT <digits>" prefix
+    // (3) Strip "NLT <digits>" if it reappears
     t = t.replace(/^NLT\s*\d{1,3}\s*/i, '');
 
-    // (4) Strip a single leading verse number (glued or spaced, optional brackets)
-    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, ''); // glued like "16For…"
-    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');               // spaced like "16 For…"
+    // (4) Strip one leading verse number (glued or spaced)
+    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
+    t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
 
-    // (5) Remove common footnote markers/daggers anywhere
-    //   - bracketed notes like [a], [b], [c1]
-    //   - daggers: † or ‡
-    //   - superscript letters/digits
-    t = t.replace(/\[[a-z]\d?\]/gi, '')
-         .replace(/[†‡]/g, '')
+    // (5) Remove inline footnote markers
+    t = t.replace(/\[[a-z]\d?\]/gi, '')   // [a], [b1]
+         .replace(/[†‡]/g, '')            // daggers
          .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, ''); // superscripts
 
-    // (6) Tidy punctuation/quotes spacing
+    // (6) Remove trailing cross-reference footnote blocks
+    // Examples we’ve seen: "* 4:6 Prov 3:34 (Greek version)." or " A 4:6 Prov 3:34 ..."
+    // 6a) anything starting with an asterisk or caret at the end
+    t = t.replace(/\s[*^].*$/, '');
+    // 6b) footnote letter + chap:verse + book at the end (e.g., " A 4:6 Prov 3:34 ...")
+    t = t.replace(/\s[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
+    // 6c) chap:verse + book at the end (e.g., " 4:6 Prov 3:34 ...")
+    t = t.replace(/\s\d{1,3}:\d{1,3}\s+[A-Za-z].*$/, '');
+
+    // (7) If there’s a closing quote followed by trailing footnote text, keep up to the quote
+    t = t.replace(/(.*[”"])\s+(?:\*|[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*)$/, '$1');
+
+    // (8) Tidy punctuation/quotes spacing
     t = t
       .replace(/\s+([,.;:!?])/g, '$1')
       .replace(/“\s+/g, '“')
@@ -210,6 +206,7 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
+
 
 
 
