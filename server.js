@@ -1,15 +1,20 @@
 // server.js — prod hardening + midnight schedule + last-good fallback
-// + archive API + redirect to GitHub Pages (frontend)
+// + archive API + redirect to GitHub Pages (frontend) + ADMIN endpoints
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { DateTime } = require('luxon');
-const generateVerse = require('./generate'); // writes public/daily.json + last-good.json + daily.js (+ archive)
 const compression = require('compression');
 const morgan = require('morgan');
 
+// ⬇️ now import both functions
+const { generateDailyVerse, generateForDate } = require('./generate');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Parse JSON bodies (needed for admin POST)
+app.use(express.json());
 
 // --- ensure /public exists ---
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -40,23 +45,20 @@ app.use((req, res, next) => {
 // CORS (relaxed for GitHub Pages frontend hitting this API)
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
 // --- security headers (simple best-practice set) ---
 app.use((req, res, next) => {
-  // Force HTTPS on future visits (HSTS)
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-  // Prevent MIME type sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Keep referrers minimal
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Disallow embedding in iframes
   res.setHeader('X-Frame-Options', 'DENY');
   next();
 });
-
 
 // --- granular caching: long cache for static, no-store for API ---
 app.use((req, res, next) => {
@@ -151,6 +153,47 @@ app.get('/api/status', (_req, res) => {
 });
 
 /* =======================
+   ADMIN (token-protected)
+   ======================= */
+
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+function requireAdmin(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  const token = m ? m[1] : (req.query.token || '');
+  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+  next();
+}
+
+// POST /api/admin/generate  { date: "YYYY-MM-DD", reference?: "Book C:V" }
+app.post('/api/admin/generate', requireAdmin, async (req, res) => {
+  try {
+    const { date, reference } = req.body || {};
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad_date' });
+    if (reference && !/^.+\s+\d+:\d+$/.test(reference)) return res.status(400).json({ error: 'bad_reference' });
+
+    const payload = await generateForDate(date, reference || null);
+    res.json({ ok: true, date: payload.date, reference: payload.reference, translation: payload.translation });
+  } catch (e) {
+    console.error('admin_generate_fail', e);
+    res.status(500).json({ error: 'generate_failed' });
+  }
+});
+
+// GET /api/admin/day/:date  (view the saved snapshot)
+app.get('/api/admin/day/:date', requireAdmin, (req, res) => {
+  const date = req.params.date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad_date' });
+  try {
+    const p = path.join(PUBLIC_DIR, 'archive', `${date}.json`);
+    const data = fs.readFileSync(p, 'utf8');
+    res.type('application/json').send(data);
+  } catch {
+    res.status(404).json({ error: 'not_found' });
+  }
+});
+
+/* =======================
    FRONTEND ROUTES
    ======================= */
 
@@ -176,7 +219,7 @@ app.get('/sitemap.xml', (_req, res) => {
 </urlset>`);
 });
 
-// Redirect root to your GitHub Pages frontend (Option A)
+// Redirect root to your GitHub Pages frontend
 app.get('/', (_req, res) => {
   res.redirect('https://davidaajose7559.github.io/daily-verse/');
 });
@@ -197,29 +240,25 @@ function msUntilNextMidnightToronto() {
 // Generate on boot + schedule
 (async function boot() {
   try {
-    await generateVerse();
+    await generateDailyVerse();
   } catch (e) {
     console.error('Initial generation failed:', e?.message || e);
   }
 
   if (process.env.NODE_ENV === 'production') {
-    // run at next local midnight, then every 24h
     setTimeout(() => {
-      generateVerse().catch(err =>
+      generateDailyVerse().catch(err =>
         console.error('Midnight generation failed:', err?.message || err)
       );
       setInterval(() => {
-        generateVerse().catch(err =>
+        generateDailyVerse().catch(err =>
           console.error('Daily generation failed:', err?.message || err)
         );
       }, 24 * 60 * 60 * 1000);
     }, msUntilNextMidnightToronto());
   } else {
-    // dev/testing: regenerate every minute
     setInterval(async () => {
-      try {
-        await generateVerse();
-      } catch (e) {
+      try { await generateDailyVerse(); } catch (e) {
         console.error('Periodic generation failed:', e?.message || e);
       }
     }, 60 * 1000);
