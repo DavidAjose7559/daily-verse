@@ -158,7 +158,7 @@ function cleanVerseText(text, reference) {
     // (1) Strip provider/translation labels at the very start
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-    // (2) Strip duplicated reference in various formats at the very start
+    // (2) Strip duplicated reference at the very start (various formats)
     if (book && chap && vers) {
       // "Book 3:16"
       t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s*:\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
@@ -166,7 +166,7 @@ function cleanVerseText(text, reference) {
       t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
       // "Book 3-16"
       t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s*-\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
-      // "Book 3 <ShortHeading> 16"
+      // "Book 3 <Short Heading> 16"
       t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}(?:\\s+[A-Z][^0-9]{0,40}){1,4}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
     }
 
@@ -177,24 +177,20 @@ function cleanVerseText(text, reference) {
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
 
-    // (5) Remove inline footnote markers
-    t = t.replace(/\[[a-z]\d?\]/gi, '')   // [a], [b1]
-         .replace(/[†‡]/g, '')            // daggers
+    // (5) Remove inline footnote markers anywhere
+    t = t.replace(/\[[a-z]\d?\]/gi, '')             // [a], [b1]
+         .replace(/[†‡]/g, '')                      // daggers
          .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, ''); // superscripts
 
-    // (6) Remove trailing cross-reference footnote blocks
-    // Examples we’ve seen: "* 4:6 Prov 3:34 (Greek version)." or " A 4:6 Prov 3:34 ..."
-    // 6a) anything starting with an asterisk or caret at the end
-    t = t.replace(/\s[*^].*$/, '');
-    // 6b) footnote letter + chap:verse + book at the end (e.g., " A 4:6 Prov 3:34 ...")
-    t = t.replace(/\s[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
-    // 6c) chap:verse + book at the end (e.g., " 4:6 Prov 3:34 ...")
-    t = t.replace(/\s\d{1,3}:\d{1,3}\s+[A-Za-z].*$/, '');
+    // (6) Remove trailing cross-ref footnotes (robust)
+    // 6a) Asterisk footnote glued to closing quote/punctuation:  ….”*4:6 Prov 3:34…
+    t = t.replace(/([”"'.!?])\s*\*.*$/, '$1');
+    // 6b) Asterisk/caret footnote at end even without quote:  … * 4:6 Prov 3:34 …
+    t = t.replace(/\s*[*^]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
+    // 6c) Lettered footnote like " A 4:6 Prov 3:34 …" (allow optional space before)
+    t = t.replace(/\s*[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
 
-    // (7) If there’s a closing quote followed by trailing footnote text, keep up to the quote
-    t = t.replace(/(.*[”"])\s+(?:\*|[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*)$/, '$1');
-
-    // (8) Tidy punctuation/quotes spacing
+    // (7) Tidy punctuation/quotes spacing
     t = t
       .replace(/\s+([,.;:!?])/g, '$1')
       .replace(/“\s+/g, '“')
@@ -206,6 +202,7 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
+
 
 
 
