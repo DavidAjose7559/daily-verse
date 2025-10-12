@@ -1,19 +1,18 @@
 // server.js — prod hardening + midnight schedule + last-good fallback
-// + archive API + redirect to GitHub Pages (frontend) + ADMIN endpoints
+// + archive API + redirect to GitHub Pages (frontend)
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { DateTime } = require('luxon');
+// Support both the old export (default function) and the new one (named exports)
+const gen = require('./generate');
+const generateVerse   = gen.generateDailyVerse || gen;      // existing daily generator
+const generateForDate = gen.generateForDate    || null;     // will be available after you update generate.js
 const compression = require('compression');
 const morgan = require('morgan');
 
-// ⬇️ now import both functions
-const { generateDailyVerse, generateForDate } = require('./generate');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Parse JSON bodies (needed for admin POST)
 app.use(express.json());
 
 // --- ensure /public exists ---
@@ -51,14 +50,20 @@ app.use((req, res, next) => {
   next();
 });
 
+
 // --- security headers (simple best-practice set) ---
 app.use((req, res, next) => {
+  // Force HTTPS on future visits (HSTS)
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  // Prevent MIME type sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Keep referrers minimal
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Disallow embedding in iframes
   res.setHeader('X-Frame-Options', 'DENY');
   next();
 });
+
 
 // --- granular caching: long cache for static, no-store for API ---
 app.use((req, res, next) => {
@@ -156,21 +161,36 @@ app.get('/api/status', (_req, res) => {
    ADMIN (token-protected)
    ======================= */
 
+// Set ADMIN_TOKEN in Render → Environment
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+
 function requireAdmin(req, res, next) {
   const auth = req.headers.authorization || '';
   const m = auth.match(/^Bearer\s+(.+)$/i);
   const token = m ? m[1] : (req.query.token || '');
-  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
   next();
 }
 
 // POST /api/admin/generate  { date: "YYYY-MM-DD", reference?: "Book C:V" }
+// Generates & saves the verse/context for that date (and updates daily if it's today)
 app.post('/api/admin/generate', requireAdmin, async (req, res) => {
   try {
     const { date, reference } = req.body || {};
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad_date' });
-    if (reference && !/^.+\s+\d+:\d+$/.test(reference)) return res.status(400).json({ error: 'bad_reference' });
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'bad_date' });
+    }
+    if (reference && !/^.+\s+\d+:\d+$/.test(reference)) {
+      return res.status(400).json({ error: 'bad_reference' });
+    }
+
+    if (!generateForDate) {
+      // Your current generate.js doesn’t export generateForDate yet.
+      // After you paste the updated generate.js I’ll give you next, this will run properly.
+      return res.status(501).json({ error: 'update_generate_js_first' });
+    }
 
     const payload = await generateForDate(date, reference || null);
     res.json({ ok: true, date: payload.date, reference: payload.reference, translation: payload.translation });
@@ -180,7 +200,7 @@ app.post('/api/admin/generate', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/day/:date  (view the saved snapshot)
+// GET /api/admin/day/:date — view the saved snapshot for a date
 app.get('/api/admin/day/:date', requireAdmin, (req, res) => {
   const date = req.params.date;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad_date' });
@@ -219,7 +239,7 @@ app.get('/sitemap.xml', (_req, res) => {
 </urlset>`);
 });
 
-// Redirect root to your GitHub Pages frontend
+// Redirect root to your GitHub Pages frontend (Option A)
 app.get('/', (_req, res) => {
   res.redirect('https://davidaajose7559.github.io/daily-verse/');
 });
@@ -240,25 +260,29 @@ function msUntilNextMidnightToronto() {
 // Generate on boot + schedule
 (async function boot() {
   try {
-    await generateDailyVerse();
+    await generateVerse();
   } catch (e) {
     console.error('Initial generation failed:', e?.message || e);
   }
 
   if (process.env.NODE_ENV === 'production') {
+    // run at next local midnight, then every 24h
     setTimeout(() => {
-      generateDailyVerse().catch(err =>
+      generateVerse().catch(err =>
         console.error('Midnight generation failed:', err?.message || err)
       );
       setInterval(() => {
-        generateDailyVerse().catch(err =>
+        generateVerse().catch(err =>
           console.error('Daily generation failed:', err?.message || err)
         );
       }, 24 * 60 * 60 * 1000);
     }, msUntilNextMidnightToronto());
   } else {
+    // dev/testing: regenerate every minute
     setInterval(async () => {
-      try { await generateDailyVerse(); } catch (e) {
+      try {
+        await generateVerse();
+      } catch (e) {
         console.error('Periodic generation failed:', e?.message || e);
       }
     }, 60 * 1000);
