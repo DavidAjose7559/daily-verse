@@ -2,6 +2,7 @@
 // -------------------------------------------------------------
 // Generates the "daily verse" payload with doctrine guardrails,
 // an edification filter, retries, atomic writes, and an archive.
+//
 // Writes:
 //   public/daily.json
 //   public/last-good.json
@@ -139,6 +140,7 @@ function htmlToPlainText(html) {
     .trim();
 }
 
+// Robust verse cleaner that handles prefixes, headings, footnotes, etc.
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
@@ -202,11 +204,6 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
-
-
-
-
-
 
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
@@ -304,18 +301,52 @@ Text: "${text}"`;
   }, { tries: 2, delayMs: 800 });
 }
 
-// ---------- Main ----------
-async function generateDailyVerse() {
-  try {
-    const MAX_TRIES = 20;
-    const today = DateTime.now().setZone('America/Toronto').toISODate(); // daily key
+/* =======================
+   Shared paths & writers
+   ======================= */
+const PUBLIC_DIR = path.join(process.cwd(), 'public');
+const archiveDir = path.join(PUBLIC_DIR, 'archive');
 
-    let reference = null;
-    let text = null;
-    let rating = null;
+function writeAll(payload) {
+  const dailyPath    = path.join(PUBLIC_DIR, 'daily.json');
+  const lastGoodPath = path.join(PUBLIC_DIR, 'last-good.json');
+  const dailyJsPath  = path.join(PUBLIC_DIR, 'daily.js');
+  const dayPath      = path.join(archiveDir, `${payload.date}.json`);
+  const indexPath    = path.join(archiveDir, 'index.json');
 
+  fs.mkdirSync(archiveDir, { recursive: true });
+
+  // write archive day + update rolling index (last 30)
+  writeJsonAtomic(dayPath, payload);
+  let idx = [];
+  try { idx = JSON.parse(fs.readFileSync(indexPath, 'utf8')); } catch {}
+  idx = idx.filter(x => x.date !== payload.date);
+  idx.unshift({ date: payload.date, reference: payload.reference });
+  idx = idx.slice(0, 30);
+  writeJsonAtomic(indexPath, idx);
+
+  // write daily + last-good + legacy JS
+  writeJsonAtomic(dailyPath, payload);
+  writeJsonAtomic(lastGoodPath, payload);
+  fs.writeFileSync(dailyJsPath, `window.dailyVerse = ${JSON.stringify(payload, null, 2)};`);
+}
+
+/* =======================
+   Public functions
+   ======================= */
+
+// Generate for a specific date, optionally forcing a reference (admin override)
+async function generateForDate(dateISO, forcedReference = null) {
+  const dateKey = dateISO;
+  const MAX_TRIES = 20;
+
+  let reference = forcedReference || null;
+  let text = null;
+  let rating = null;
+
+  if (!reference) {
     for (let offset = 0; offset < MAX_TRIES; offset++) {
-      const candidate = pickReferenceFor(today, offset);
+      const candidate = pickReferenceFor(dateKey, offset);
       if (BLOCKLIST.has(candidate)) continue;
 
       const t = await fetchVerseText(candidate).catch(() => null);
@@ -329,59 +360,50 @@ async function generateDailyVerse() {
         break;
       }
     }
-
     if (!reference) {
       reference = WHITELIST_DEFAULTS[crypto.randomBytes(1)[0] % WHITELIST_DEFAULTS.length];
       text = await fetchVerseText(reference).catch(() => reference);
       rating = { safe: true, category: 'edifying', reason: 'fallback_whitelist' };
     }
+  } else {
+    text = await fetchVerseText(reference);
+    rating = { safe: true, category: 'edifying', reason: 'admin_override' };
+  }
 
-    const context = await generateContext(reference, text);
+  const context = await generateContext(reference, text);
 
-    const payload = {
-      date: today,
-      reference,
-      text,
-      context,
-      rating,
-      translation: 'NLT',
-    };
+  const payload = {
+    date: dateKey,
+    reference,
+    text,
+    context,
+    rating,
+    translation: 'NLT',
+  };
 
-    // ---- paths ----
-    const publicDir    = path.join(process.cwd(), 'public');
-    const dailyPath    = path.join(publicDir, 'daily.json');
-    const lastGoodPath = path.join(publicDir, 'last-good.json');
-    const dailyJsPath  = path.join(publicDir, 'daily.js');
+  writeAll(payload);
+  console.log(`✅ generated ${dateKey} | ${reference} | ${rating?.reason || 'ok'}`);
+  return payload;
+}
 
-    // ---- ARCHIVE: save snapshot + rolling index (last 30) ----
-    const archiveDir   = path.join(publicDir, 'archive');
-    const dayPath      = path.join(archiveDir, `${payload.date}.json`);
-    const indexPath    = path.join(archiveDir, 'index.json');
-
-    fs.mkdirSync(archiveDir, { recursive: true });
-    writeJsonAtomic(dayPath, payload);
-
-    let idx = [];
-    try { idx = JSON.parse(fs.readFileSync(indexPath, 'utf8')); } catch {}
-    idx = idx.filter(x => x.date !== payload.date);
-    idx.unshift({ date: payload.date, reference: payload.reference });
-    idx = idx.slice(0, 30);
-    writeJsonAtomic(indexPath, idx);
-
-    // ---- atomic JSON writes for "today" + last-good ----
-    writeJsonAtomic(dailyPath, payload);
-    writeJsonAtomic(lastGoodPath, payload);
-
-    // legacy JS global (non-atomic is fine here)
-    fs.writeFileSync(dailyJsPath, `window.dailyVerse = ${JSON.stringify(payload, null, 2)};`);
-
-    console.log(`✅ ${today} | ${reference} | ${rating?.reason || 'ok'}`);
+// Generate "today" (Toronto). If archive for today already exists, reuse it.
+async function generateDailyVerse() {
+  try {
+    const today = DateTime.now().setZone('America/Toronto').toISODate();
+    const pre = path.join(archiveDir, `${today}.json`);
+    if (fs.existsSync(pre)) {
+      const payload = JSON.parse(fs.readFileSync(pre, 'utf8'));
+      writeAll(payload);
+      console.log(`✅ used pre-generated archive for ${today} | ${payload.reference}`);
+      return;
+    }
+    await generateForDate(today, null);
   } catch (err) {
     console.error('❌ Failed to generate daily verse:', err?.stack || err);
   }
 }
 
-module.exports = generateDailyVerse;
+module.exports = { generateDailyVerse, generateForDate };
 
 if (require.main === module) {
   generateDailyVerse();
