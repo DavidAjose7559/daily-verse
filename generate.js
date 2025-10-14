@@ -207,44 +207,75 @@ function cleanVerseText(text, reference) {
 
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
-// Helper: parse "Book Chapter:Verse" and build NLT API ref
-function buildNltApiRef(reference) {
-  // e.g., "1 Corinthians 13:4"  -> book="1 Corinthians", chap="13", vers="4"
-  const m = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
-  if (!m) return reference.replace(/\s+/g, '.'); // fallback
+// ---- Robust ref builder & fetcher for NLT API ----
+
+// Parse "Book Chapter:Verse" into { book, chap, vers }
+function parseRef(reference) {
+  const m = String(reference || '').trim().match(/^(.+?)\s+(\d+):(\d+)$/);
+  if (!m) return null;
   let [, book, chap, vers] = m;
+  return {
+    book: book.trim().replace(/\s+/g, ' '),
+    chap,
+    vers
+  };
+}
 
-  // Trim and normalize internal spaces in the book name
-  book = book.trim().replace(/\s+/g, ' ');
+// Produce a list of likely NLT API refs to try, in order of likelihood.
+// e.g. "1 Corinthians 13:4" -> ["1Corinthians.13:4", "1.Corinthians.13:4", "1.Corinthians.13:4"]
+function buildNltCandidates(reference) {
+  const p = parseRef(reference);
+  if (!p) return [reference.replace(/\s+/g, '.')]; // fallback single-shot
 
-  // For numbered books, remove the space after the leading digit: "1 Corinthians" -> "1Corinthians"
-  // For others, keep words but join with dots: "Song of Songs" -> "Song.of.Songs"
-  let bookApi;
-  const numMatch = book.match(/^([1-3])\s+(.*)$/);
-  if (numMatch) {
-    bookApi = numMatch[1] + numMatch[2].replace(/\s+/g, ''); // join all remaining words
-  } else {
-    bookApi = book.replace(/\s+/g, '.');
+  const { book, chap, vers } = p;
+  const words = book.split(' ');
+  const first = words[0];
+  const restWords = words.slice(1);
+  const restNoSpaces = restWords.join('');
+  const restDots = restWords.join('.');
+
+  // Non-numbered books: "Song of Songs" -> "Song.of.Songs"
+  if (!/^[1-3]$/.test(first)) {
+    return [
+      `${words.join('.')}.${chap}:${vers}`, // "Song.of.Songs.1:2"
+      `${book.replace(/\s+/g, '')}.${chap}:${vers}` // "SongofSongs.1:2"
+    ];
   }
 
-  return `${bookApi}.${chap}:${vers}`;
+  // Numbered books (1/2/3 prefix)
+  const n = first; // "1","2","3"
+  return [
+    `${n}${restNoSpaces}.${chap}:${vers}`,      // "1Corinthians.13:4"
+    `${n}.${restNoSpaces}.${chap}:${vers}`,    // "1.Corinthians.13:4"
+    `${n}.${restDots}.${chap}:${vers}`,        // "1.Corinthians.13:4" (dots between rest words)
+    `${n}${restDots}.${chap}:${vers}`,         // "1Corinthians.13:4" (if restDots == restNoSpaces it's same)
+  ];
 }
 
 async function fetchVerseText(reference) {
   const url = 'https://api.nlt.to/api/passages';
-  const refForApi = buildNltApiRef(reference); // <-- use the smarter builder
+  const candidates = buildNltCandidates(reference);
 
-  const params = { ref: refForApi, version: 'NLT', key: NLT_API_KEY };
-  return await withRetries(async () => {
-    const response = await axios.get(url, { params, timeout: 15000 });
-    const data = response?.data;
-    const html = typeof data === 'string' ? data : (data?.html || data?.text || '');
-    const plain = htmlToPlainText(html);
-    const cleaned = cleanVerseText(plain, reference);
-    if (!cleaned) throw new Error('empty_nlt_text');
-    return cleaned;
-  }, { tries: 3, delayMs: 700 });
+  // try each candidate until one works
+  let lastErr;
+  for (const refForApi of candidates) {
+    try {
+      const params = { ref: refForApi, version: 'NLT', key: NLT_API_KEY };
+      const resp = await axios.get(url, { params, timeout: 15000 });
+      const data = resp?.data;
+      const html = typeof data === 'string' ? data : (data?.html || data?.text || '');
+      const plain = htmlToPlainText(html);
+      const cleaned = cleanVerseText(plain, reference);
+      if (cleaned) return cleaned;
+    } catch (e) {
+      lastErr = e;
+      // continue to next candidate
+    }
+  }
+  // If all candidates failed, throw so caller can handle (admin will report "generate_failed")
+  throw lastErr || new Error('nlt_lookup_failed');
 }
+
 
 
 // ---------- Suitability classifier (with retries) ----------
