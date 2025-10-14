@@ -144,7 +144,6 @@ function htmlToPlainText(html) {
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
-  // Parse "Book Chapter:Verse"
   const ref = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
   const book = ref ? ref[1] : null;
   const chap = ref ? ref[2] : null;
@@ -152,58 +151,55 @@ function cleanVerseText(text, reference) {
 
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  // Run two passes to catch chained patterns
+  // Build a short book pattern for numbered abbreviations (1 Co, 2 Thes, etc.)
+  let shortBook = book;
+  if (/^[1-3]\s*[A-Za-z]+/.test(book)) {
+    const parts = book.split(/\s+/);
+    const num = parts[0];
+    const word = parts.slice(1).join('');
+    shortBook = `${num}\\s*${word.slice(0, 3)}`; // e.g. 1Co, 2Th, 1Pe
+  }
+
   for (let i = 0; i < 2; i++) {
-    // Normalize whitespace
     t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // (1) Strip provider/translation labels at the very start
+    // Remove "NLT" labels
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-    // (2) Strip duplicated reference at the very start (various formats)
+    // Remove duplicated reference, both long and short forms
     if (book && chap && vers) {
-      // "Book 3:16"
-      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s*:\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
-      // "Book 3 16"
-      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
-      // "Book 3-16"
-      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}\\s*-\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
-      // "Book 3 <Short Heading> 16"
-      t = t.replace(new RegExp(`^${esc(book)}\\s+${chap}(?:\\s+[A-Z][^0-9]{0,40}){1,4}\\s+${vers}\\s*[–—,:-]*\\s*`, 'i'), '');
+      const long = new RegExp(`^${esc(book)}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
+      const short = new RegExp(`^${shortBook}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
+      t = t.replace(long, '');
+      t = t.replace(short, '');
     }
 
-    // (3) Strip "NLT <digits>" if it reappears
-    t = t.replace(/^NLT\s*\d{1,3}\s*/i, '');
+    // Remove "NLT10" / "NLT11" codes
+    t = t.replace(/^NLT\d+\s*/i, '');
 
-    // (4) Strip one leading verse number (glued or spaced)
+    // Strip leading verse numbers and footnotes
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
+    t = t.replace(/\[[a-z]\d?\]/gi, '').replace(/[†‡]/g, '')
+         .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
 
-    // (5) Remove inline footnote markers anywhere
-    t = t.replace(/\[[a-z]\d?\]/gi, '')             // [a], [b1]
-         .replace(/[†‡]/g, '')                      // daggers
-         .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, ''); // superscripts
-
-    // (6) Remove trailing cross-ref footnotes (robust)
-    // 6a) Asterisk footnote glued to closing quote/punctuation:  ….”*4:6 Prov 3:34…
+    // Remove trailing cross-reference footnotes
     t = t.replace(/([”"'.!?])\s*\*.*$/, '$1');
-    // 6b) Asterisk/caret footnote at end even without quote:  … * 4:6 Prov 3:34 …
     t = t.replace(/\s*[*^]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
-    // 6c) Lettered footnote like " A 4:6 Prov 3:34 …" (allow optional space before)
     t = t.replace(/\s*[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
 
-    // (7) Tidy punctuation/quotes spacing
-    t = t
-      .replace(/\s+([,.;:!?])/g, '$1')
-      .replace(/“\s+/g, '“')
-      .replace(/\s+”/g, '”')
-      .replace(/\s+([’'])/g, '$1')
-      .replace(/([‘'])\s+/g, '$1')
-      .trim();
+    // Tidy punctuation
+    t = t.replace(/\s+([,.;:!?])/g, '$1')
+         .replace(/“\s+/g, '“')
+         .replace(/\s+”/g, '”')
+         .replace(/\s+([’'])/g, '$1')
+         .replace(/([‘'])\s+/g, '$1')
+         .trim();
   }
 
   return t;
 }
+
 
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
