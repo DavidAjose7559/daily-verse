@@ -207,25 +207,45 @@ function cleanVerseText(text, reference) {
 
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
+// Helper: parse "Book Chapter:Verse" and build NLT API ref
+function buildNltApiRef(reference) {
+  // e.g., "1 Corinthians 13:4"  -> book="1 Corinthians", chap="13", vers="4"
+  const m = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
+  if (!m) return reference.replace(/\s+/g, '.'); // fallback
+  let [, book, chap, vers] = m;
+
+  // Trim and normalize internal spaces in the book name
+  book = book.trim().replace(/\s+/g, ' ');
+
+  // For numbered books, remove the space after the leading digit: "1 Corinthians" -> "1Corinthians"
+  // For others, keep words but join with dots: "Song of Songs" -> "Song.of.Songs"
+  let bookApi;
+  const numMatch = book.match(/^([1-3])\s+(.*)$/);
+  if (numMatch) {
+    bookApi = numMatch[1] + numMatch[2].replace(/\s+/g, ''); // join all remaining words
+  } else {
+    bookApi = book.replace(/\s+/g, '.');
+  }
+
+  return `${bookApi}.${chap}:${vers}`;
+}
+
 async function fetchVerseText(reference) {
   const url = 'https://api.nlt.to/api/passages';
-  const params = {
-    ref: reference.replace(/\s+/g, '.'), // "John 3:16" → "John.3:16"
-    version: 'NLT',
-    key: NLT_API_KEY,
-  };
+  const refForApi = buildNltApiRef(reference); // <-- use the smarter builder
+
+  const params = { ref: refForApi, version: 'NLT', key: NLT_API_KEY };
   return await withRetries(async () => {
     const response = await axios.get(url, { params, timeout: 15000 });
     const data = response?.data;
-    const html = typeof data === 'string'
-      ? data
-      : (data?.html || data?.text || '');
+    const html = typeof data === 'string' ? data : (data?.html || data?.text || '');
     const plain = htmlToPlainText(html);
     const cleaned = cleanVerseText(plain, reference);
     if (!cleaned) throw new Error('empty_nlt_text');
     return cleaned;
   }, { tries: 3, delayMs: 700 });
 }
+
 
 // ---------- Suitability classifier (with retries) ----------
 async function classifySuitability(reference, text) {
