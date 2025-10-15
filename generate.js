@@ -141,46 +141,70 @@ function htmlToPlainText(html) {
 }
 
 // Robust verse cleaner that handles prefixes, headings, footnotes, etc.
+// Expand common abbreviations to full book names for display AND cleaning
+const BOOK_EXPANSIONS = {
+  Co: 'Corinthians', Cor: 'Corinthians',
+  Pt: 'Peter',       Pet: 'Peter', Pe: 'Peter',
+  Tim: 'Timothy',
+  Thes: 'Thessalonians', Thess: 'Thessalonians',
+  Jn: 'John',        Jhn: 'John',
+  Sam: 'Samuel',
+  Kgs: 'Kings',
+  Chr: 'Chronicles', Chron: 'Chronicles',
+};
+
+// Robust verse cleaner that handles prefixes, headings, footnotes, etc.
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
-  const ref = reference.match(/^(.+?)\s+(\d+):(\d+)$/);
-  const book = ref ? ref[1] : null;
-  const chap = ref ? ref[2] : null;
-  const vers = ref ? ref[3] : null;
+  const m = String(reference || '').match(/^(.+?)\s+(\d+):(\d+)$/) || [];
+  const book = m[1] || '';
+  const chap = m[2] || '';
+  const vers = m[3] || '';
 
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  // Build a short book pattern for numbered abbreviations (1 Co, 2 Thes, etc.)
-  let shortBook = book;
-  if (/^[1-3]\s*[A-Za-z]+/.test(book)) {
-    const parts = book.split(/\s+/);
-    const num = parts[0];
-    const word = parts.slice(1).join('');
-    shortBook = `${num}\\s*${word.slice(0, 3)}`; // e.g. 1Co, 2Th, 1Pe
+  // Build helpful pieces for numbered books (e.g., "1 Co" / "1 Corinthians")
+  const parts = book.split(/\s+/);
+  const numPrefix = /^[1-3]$/.test(parts[0]) ? parts[0] : '';
+  const lastWord  = parts.slice(-1)[0] || '';                  // "Co" or "Corinthians"
+  const lastAbbr3 = lastWord.slice(0, 3);                      // "Co" -> "Co", "Corinthians" -> "Cor"
+  const lastFull  = BOOK_EXPANSIONS[lastWord] || lastWord;     // "Co" -> "Corinthians"
+
+  // Patterns that may appear at the very start of the API text
+  const patterns = [];
+  if (book && chap && vers) {
+    // Full long book name as typed
+    patterns.push(new RegExp(`^${esc(book)}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'));
+    // Short form like "1 Cor 5:10" / "1 Co 5:10"
+    if (numPrefix) {
+      patterns.push(new RegExp(`^${numPrefix}\\s*${esc(lastAbbr3)}\\w*\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'));
+      // Sometimes the number is missing: "Corinthians 5:10"
+      patterns.push(new RegExp(`^${esc(lastFull)}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'));
+    }
   }
 
   for (let i = 0; i < 2; i++) {
+    // Normalize whitespace
     t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Remove "NLT" labels
+    // Remove provider labels
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-    // Remove duplicated reference, both long and short forms
-    if (book && chap && vers) {
-      const long = new RegExp(`^${esc(book)}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
-      const short = new RegExp(`^${shortBook}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i');
-      t = t.replace(long, '');
-      t = t.replace(short, '');
-    }
+    // Remove the duplicate reference header (try all patterns)
+    for (const re of patterns) t = t.replace(re, '');
 
-    // Remove "NLT10" / "NLT11" codes
+    // Remove things like ", NLT10" / "NLT11" lingering after the header
+    t = t.replace(/^[,;\s]*NLT\d+\s*/i, '');
     t = t.replace(/^NLT\d+\s*/i, '');
 
-    // Strip leading verse numbers and footnotes
+    // Strip a leading verse number if present
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
-    t = t.replace(/\[[a-z]\d?\]/gi, '').replace(/[†‡]/g, '')
+
+    // Remove inline footnote markers
+    t = t.replace(/\[[a-z]\d?\]/gi, '')
+         .replace(/[†‡]/g, '')
          .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
 
     // Remove trailing cross-reference footnotes
@@ -188,7 +212,7 @@ function cleanVerseText(text, reference) {
     t = t.replace(/\s*[*^]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
     t = t.replace(/\s*[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
 
-    // Tidy punctuation
+    // Tidy punctuation spacing
     t = t.replace(/\s+([,.;:!?])/g, '$1')
          .replace(/“\s+/g, '“')
          .replace(/\s+”/g, '”')
@@ -199,6 +223,8 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
+
+
 
 
 // ---------- Bible API fetch (NLT only) ----------
@@ -381,6 +407,27 @@ function writeAll(payload) {
    Public functions
    ======================= */
 
+
+function normalizeReferenceForDisplay(ref) {
+  // Try "number + word + C:V" first, e.g. "1 Co 5:10", "2 Thess 3:16"
+  let m = String(ref || '').trim().match(/^([1-3])\s*([A-Za-z.]+)\s+(\d+):(\d+)$/);
+  if (m) {
+    const num = m[1];
+    const raw = m[2].replace(/\./g, ''); // "Co" or "Cor"
+    const chap = m[3], vers = m[4];
+    const full = BOOK_EXPANSIONS[raw] || raw; // expand if we know it
+    return `${num} ${capitalize(full)} ${chap}:${vers}`;
+  }
+  // Non-numbered books: "John 3:16", "Song of Songs 1:2"
+  m = String(ref || '').trim().match(/^(.+?)\s+(\d+):(\d+)$/);
+  if (m) return `${titleCase(m[1])} ${m[2]}:${m[3]}`;
+  return ref;
+}
+
+function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+function titleCase(s)   { return String(s).replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1)); }
+
+
 // Generate for a specific date, optionally forcing a reference (admin override)
 async function generateForDate(dateISO, forcedReference = null) {
   const dateKey = dateISO;
@@ -417,10 +464,11 @@ async function generateForDate(dateISO, forcedReference = null) {
   }
 
   const context = await generateContext(reference, text);
+  const displayRef = normalizeReferenceForDisplay(reference);
 
   const payload = {
     date: dateKey,
-    reference,
+    reference: displayRef,   // << use the full, pretty version
     text,
     context,
     rating,
