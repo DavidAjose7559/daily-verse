@@ -1,6 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /admin.html
-Disallow: /api/
 
-Sitemap: https://davidajose7559.github.io/sitemap.xml
+Sitemap: https://davidajose7559.github.io/daily-verse/sitemap.xml
