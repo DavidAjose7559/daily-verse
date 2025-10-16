@@ -2,140 +2,400 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Daily Verse — Today</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Verse</title>
+
+  <!-- Plausible Analytics -->
+  <script defer data-domain="davidajose7559.github.io" src="https://plausible.io/js/script.js"></script>
+  <script>
+    // helper so we can call plausible('EventName', {props:{...}})
+    window.plausible = window.plausible || function(){(window.plausible.q=window.plausible.q||[]).push(arguments)};
+  </script>
 
   <!-- Basic SEO -->
-  <meta name="description" content="Receive a daily verse with faithful context, explanation, and Greek insights." />
-  <link rel="canonical" href="https://davidajose7559.github.io/daily-verse/" />
-  <meta name="theme-color" content="#2563eb" />
+  <meta name="description" content="Daily Bible verse with short context. Be encouraged and grow in the Word every day.">
+  <link rel="canonical" href="https://davidajose7559.github.io/daily-verse/">
+  <meta name="theme-color" content="#2563eb">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Daily Verse — Today" />
-  <meta property="og:description" content="Faithful daily verses with context and explanation." />
+  <meta property="og:title" content="Daily Verse" />
+  <meta property="og:description" content="Be encouraged and edified with a new Bible verse every day (with context)." />
   <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://davidajose7559.github.io/daily-verse/" />
   <meta property="og:image" content="https://davidajose7559.github.io/daily-verse/DA.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
 
-  <!-- Fonts & Styles -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Daily Verse" />
+  <meta name="twitter:description" content="Daily Bible verse with short context." />
+  <meta name="twitter:image" content="https://davidajose7559.github.io/daily-verse/DA.png" />
 
-  <!-- Plausible -->
-  <script defer data-domain="davidajose7559.github.io" src="https://plausible.io/js/script.outbound-links.js"></script>
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="DA.png">
+
+  <!-- Fonts & CSS -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- JSON-LD placeholder (populated at runtime) -->
+  <script id="ldjson" type="application/ld+json"></script>
 </head>
-
 <body>
-  <main>
-    <header>
-      <h1 id="reference">Loading...</h1>
-      <p id="date"></p>
-      <p id="verse"></p>
-      <div class="buttons">
+  <main class="container">
+    <header class="page-header">
+      <h1 id="reference" class="title">Daily Verse</h1>
+      <div class="meta">
+        <span id="date">Date: —</span>
+        <span class="dot">·</span>
+        <span id="translation">WEB</span>
+      </div>
+      <p id="text" class="verse-text"></p>
+
+      <div class="actions">
         <button id="copyBtn" class="btn">Copy Verse</button>
-        <button id="shareBtn" class="btn">Share</button>
-        <button id="yesterdayBtn" class="btn">Yesterday</button>
-        <a href="archive.html" class="btn">Archive</a>
-        <button id="themeToggle" class="btn" title="Toggle theme">🌙</button>
+        <button id="shareBtn" class="btn btn-ghost">Share</button>
+        <button id="prevBtn" class="btn btn-ghost">Yesterday</button>
+        <button id="todayBtn" class="btn" style="display:none">Today</button>
+        <a class="btn" href="archive.html">Archive</a>
+        <!-- Dark mode toggle -->
+        <button id="themeBtn" class="btn btn-ghost" aria-label="Toggle theme">🌙</button>
       </div>
     </header>
 
-    <section id="context" class="card">
-      <p>Loading explanation...</p>
-    </section>
+    <article id="context" class="card" aria-live="polite"></article>
+
+    <pre id="debug" style="display:none;"></pre>
   </main>
 
   <footer>
-    <p><strong>Daily Verse</strong> — faithfully explained and contextualized.</p>
+    Scripture quotations are from the <em>Holy Bible, New Living Translation</em> (NLT),
+    © Tyndale House Foundation. Used by permission of Tyndale House Publishers.
+    All rights reserved.
   </footer>
 
   <script>
-    const API_BASE = (location.hostname.endsWith('github.io'))
-      ? 'https://daily-verse-api.onrender.com'
-      : location.origin;
+    // ==============================
+    // Toast helper
+    // ==============================
+    function toast(msg, ms = 1600) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      requestAnimationFrame(() => t.classList.add('show'));
+      setTimeout(() => {
+        t.classList.remove('show');
+        t.addEventListener('transitionend', () => t.remove(), { once: true });
+      }, ms);
+    }
 
-    const refEl = document.getElementById('reference');
-    const dateEl = document.getElementById('date');
-    const verseEl = document.getElementById('verse');
-    const contextEl = document.getElementById('context');
-
-    // Theme toggle
-    const themeToggle = document.getElementById('themeToggle');
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') document.body.classList.add('light');
-    themeToggle.addEventListener('click', () => {
-      document.body.classList.toggle('light');
-      localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
-    });
-
-    // Load verse
-    async function loadVerse() {
-      const urlParams = new URLSearchParams(location.search);
-      const dateParam = urlParams.get('date');
-      const endpoint = dateParam ? `/api/archive/${dateParam}` : '/api/daily';
+    // ==============================
+    // JSON-LD helper (CreativeWork)
+    // ==============================
+    function setLD(d) {
       try {
-        const res = await fetch(API_BASE + endpoint);
-        if (!res.ok) throw new Error('Fetch failed');
-        const payload = await res.json();
-        renderVerse(payload);
-      } catch (err) {
-        refEl.textContent = 'Error loading verse';
-        contextEl.innerHTML = '<p>Could not load today’s verse. Please try again later.</p>';
+        const payload = {
+          "@context": "https://schema.org",
+          "@type": "CreativeWork",
+          "name": `${d.reference} (${d.translation || 'NLT'})`,
+          "text": d.text,
+          "datePublished": d.date,
+          "inLanguage": "en",
+          "isFamilyFriendly": true,
+          "isPartOf": {
+            "@type": "WebSite",
+            "name": "Daily Verse",
+            "url": "https://davidajose7559.github.io/daily-verse/"
+          }
+        };
+        document.getElementById('ldjson').textContent = JSON.stringify(payload);
+      } catch {}
+    }
+
+    // ==============================
+    // Theme toggle
+    // ==============================
+    const THEME_KEY = 'dv_theme';
+    function getPreferredTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b1020' : '#2563eb');
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    }
+    applyTheme(getPreferredTheme());
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      if (!localStorage.getItem(THEME_KEY)) applyTheme(e.matches ? 'dark' : 'light');
+    });
+    document.getElementById('themeBtn')?.addEventListener('click', toggleTheme);
+
+    // ==============================
+    // CONFIG: API lives on Render
+    // ==============================
+    const API_BASE = 'https://daily-verse-viewer.onrender.com';
+
+    // DOM refs
+    const els = {
+      date: document.getElementById('date'),
+      reference: document.getElementById('reference'),
+      text: document.getElementById('text'),
+      context: document.getElementById('context'),
+      translation: document.getElementById('translation'),
+      copyBtn: document.getElementById('copyBtn'),
+      shareBtn: document.getElementById('shareBtn'),
+      prevBtn: document.getElementById('prevBtn'),
+      todayBtn: document.getElementById('todayBtn'),
+      debug: document.getElementById('debug'),
+    };
+
+    // ==============================
+    // Full context sanitizer
+    // ==============================
+    function sanitizeContext(html) {
+      let s = String(html || '');
+
+      // Remove code-fence beginnings like ```html, ~~~html, or a bare "~html"
+      s = s.replace(/^\s*(?:```|~~~)\s*html\s*\n?/i, '');
+      s = s.replace(/^\s*~\s*html\s*\n?/i, '');
+
+      // Remove trailing code-fence closers ``` or ~~~ at the end
+      s = s.replace(/\n?\s*(?:```|~~~)\s*$/i, '');
+
+      // Trim stray leading/trailing quotes
+      s = s.replace(/^"+|"+$/g, '');
+
+      // Strip any <script> tags just in case
+      const div = document.createElement('div');
+      div.innerHTML = s || '';
+      div.querySelectorAll('script').forEach((el) => el.remove());
+      return div.innerHTML;
+    }
+
+    // ==============================
+    // Rendering helper
+    // ==============================
+    function renderPayload(d) {
+      els.date.textContent        = `Date: ${d.date || '—'}`;
+      els.reference.textContent   = d.reference || 'Daily Verse';
+      els.text.textContent        = d.text || '';
+      els.translation.textContent = d.translation || 'WEB';
+      els.context.innerHTML       = sanitizeContext(d.context || '');
+
+      // NEW: attach Extended Passage toggle if available
+      setupExtendedToggle(d);
+
+      // JSON-LD
+      setLD(d);
+    }
+
+    // ==============================
+    // Toronto date helpers (no libs)
+    // ==============================
+    function torontoISO(date = new Date()) {
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    }
+    function torontoYesterdayISO() {
+      const [y, m, d] = torontoISO().split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() - 1);
+      const yy = dt.getUTCFullYear();
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getUTCDate()).padStart(2, '0');
+      return `${yy}-${mm}-${dd}`;
+    }
+    function addDaysISO(iso, delta) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + delta);
+      const y2 = dt.getUTCFullYear();
+      const m2 = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const d2 = String(dt.getUTCDate()).padStart(2, '0');
+      return `${y2}-${m2}-${d2}`;
+    }
+
+    // ==============================
+    // Deep link helpers (?date=YYYY-MM-DD)
+    // ==============================
+    function getQueryDate() {
+      const url = new URL(location.href);
+      const q = url.searchParams.get('date');
+      return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : null;
+    }
+    function setQueryDate(isoOrNull) {
+      const url = new URL(location.href);
+      if (isoOrNull) url.searchParams.set('date', isoOrNull);
+      else url.searchParams.delete('date');
+      history.replaceState({}, '', url.toString());
+    }
+
+    // ==============================
+    // Fetch + render (Today)
+    // ==============================
+    async function loadDaily() {
+      try {
+        const res = await fetch(`${API_BASE}/api/daily`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        renderPayload(d);
+        els.todayBtn.style.display = 'none';
+        els.prevBtn.style.display  = 'inline-block';
+        els.prevBtn.disabled = false;
+        setQueryDate(null);
+      } catch (e) {
+        if (els.debug) {
+          els.debug.style.display = 'block';
+          els.debug.textContent = `Not ready (${e.message})`;
+        }
       }
     }
 
-    // Render the verse data
-    function renderVerse(payload) {
-      refEl.textContent = payload.reference;
-      dateEl.textContent = `Date: ${payload.date} · ${payload.translation}`;
-      verseEl.textContent = payload.text;
-      contextEl.innerHTML = payload.context;
-
-      // Set up extended toggle
-      setupExtendedToggle(payload);
-
-      // JSON-LD for SEO
-      const ld = {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        "headline": `Daily Verse — ${payload.reference}`,
-        "datePublished": payload.date,
-        "articleBody": payload.text,
-        "author": { "@type": "Organization", "name": "Daily Verse" }
-      };
-      const script = document.createElement('script');
-      script.type = 'application/ld+json';
-      script.textContent = JSON.stringify(ld, null, 2);
-      document.head.appendChild(script);
+    // ==============================
+    // Fetch + render (Archive day)
+    // ==============================
+    async function loadArchive(dateIso) {
+      try {
+        const res = await fetch(`${API_BASE}/api/archive/${dateIso}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`No archive for ${dateIso}`);
+        const d = await res.json();
+        renderPayload(d);
+        els.prevBtn.style.display  = 'none';
+        els.todayBtn.style.display = 'inline-block';
+        setQueryDate(dateIso);
+      } catch (e) {
+        toast(`No saved verse for ${dateIso}.`);
+      }
     }
 
-    // Copy / Share / Yesterday buttons
-    document.getElementById('copyBtn').addEventListener('click', async () => {
-      const text = `${refEl.textContent}\n${verseEl.textContent}`;
+    async function loadYesterday() {
+      const y = torontoYesterdayISO();
+      await loadArchive(y);
+    }
+
+    // ==============================
+    // Copy & Share (with analytics)
+    // ==============================
+    els.copyBtn.addEventListener('click', async () => {
+      const content = `${els.reference.textContent} — ${els.text.textContent}`;
       try {
-        await navigator.clipboard.writeText(text);
-        alert('Verse copied!');
-      } catch {}
+        await navigator.clipboard.writeText(content);
+        plausible('Copy Verse', { props: { date: getQueryDate() || 'today' }});
+        toast('Verse copied!');
+      } catch {
+        toast('Copy failed');
+      }
     });
 
-    document.getElementById('shareBtn').addEventListener('click', async () => {
-      const shareData = {
-        title: refEl.textContent,
-        text: verseEl.textContent,
-        url: location.href
-      };
+    els.shareBtn.addEventListener('click', async () => {
+      const content = `${els.reference.textContent} — ${els.text.textContent}`;
+      const url = location.href;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Daily Verse', text: content, url });
+          plausible('Share', { props: { method: 'web-share', date: getQueryDate() || 'today' }});
+        } catch {}
+      } else {
+        try {
+          await navigator.clipboard.writeText(`${content}\n${url}`);
+          plausible('Share', { props: { method: 'clipboard', date: getQueryDate() || 'today' }});
+          toast('Copied verse + link!');
+        } catch { toast('Sharing not supported in this browser'); }
+      }
+    });
+
+    // Archive nav
+    els.prevBtn.addEventListener('click', async () => {
+      plausible('Navigate', { props: { to: 'yesterday' }});
+      await loadYesterday();
+    });
+    els.todayBtn.addEventListener('click', async () => {
+      plausible('Navigate', { props: { to: 'today' }});
+      await loadDaily();
+    });
+
+    // On load, disable Yesterday if no archive yet
+    (async () => {
       try {
-        await navigator.share(shareData);
-      } catch {}
-    });
+        const res = await fetch(`${API_BASE}/api/archive`, { cache: 'no-store' });
+        const list = res.ok ? await res.json() : [];
+        const hasYesterday = list.some(x => x.date === torontoYesterdayISO());
+        if (!hasYesterday) els.prevBtn.disabled = true;
+      } catch {
+        els.prevBtn.disabled = true;
+      }
+    })();
 
-    document.getElementById('yesterdayBtn').addEventListener('click', () => {
-      const today = new Date();
-      today.setDate(today.getDate() - 1);
-      const yDate = today.toISOString().split('T')[0];
-      location.href = `?date=${yDate}`;
-    });
+    // Init
+    (async function init() {
+      const qd = getQueryDate();
+      if (qd) {
+        try {
+          const res = await fetch(`${API_BASE}/api/archive/${qd}`, { cache: 'no-store' });
+          if (res.ok) {
+            const d = await res.json();
+            renderPayload(d);
+            els.prevBtn.style.display  = 'none';
+            els.todayBtn.style.display = 'inline-block';
+            return;
+          }
+        } catch {}
+      }
+      await loadDaily();
+    })();
 
-    // --- Extended Passage Toggle Logic ---
+    // Track initial view mode
+    (function trackInitialView() {
+      plausible('View', { props: { mode: getQueryDate() ? 'archive' : 'today' }});
+    })();
+
+    // Refresh at next midnight (Toronto)
+    function msUntilNextMidnightToronto() {
+      const now = new Date();
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      });
+      const parts = Object.fromEntries(fmt.formatToParts(now).map(p => [p.type, p.value]));
+      const torontoNow = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`);
+      const next = new Date(torontoNow);
+      next.setDate(next.getDate() + 1);
+      next.setHours(0, 0, 0, 0);
+      return next - torontoNow;
+    }
+    setTimeout(() => {
+      if (!getQueryDate()) {
+        loadDaily();
+      }
+      setInterval(() => {
+        if (!getQueryDate()) loadDaily();
+      }, 24 * 60 * 60 * 1000);
+    }, msUntilNextMidnightToronto());
+
+    // ==============================
+    // NEW: Extended Passage toggle
+    // ==============================
     function setupExtendedToggle(payload) {
       try {
         if (!payload?.extended?.reference) return;
@@ -145,6 +405,7 @@
         const headers = Array.from(ctx.querySelectorAll('h3'));
         const extH3 = headers.find(h => h.textContent.trim().toLowerCase() === 'extended verse');
         if (!extH3) return;
+
         const refP = extH3.nextElementSibling;
         if (!refP || refP.tagName !== 'P') return;
 
@@ -182,8 +443,6 @@
         btn.insertAdjacentElement('afterend', box);
       } catch {}
     }
-
-    loadVerse();
   </script>
 </body>
 </html>
