@@ -140,7 +140,6 @@ function htmlToPlainText(html) {
     .trim();
 }
 
-// Robust verse cleaner that handles prefixes, headings, footnotes, etc.
 // Expand common abbreviations to full book names for display AND cleaning
 const BOOK_EXPANSIONS = {
   Co: 'Corinthians', Cor: 'Corinthians',
@@ -175,117 +174,72 @@ function cleanVerseText(text, reference) {
   // Patterns that may appear at the very start of the API text
   const patterns = [];
   if (book && chap && vers) {
-    // Full long book name as typed
     patterns.push(new RegExp(`^${esc(book)}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'));
-    // Short form like "1 Cor 5:10" / "1 Co 5:10"
     if (numPrefix) {
       patterns.push(new RegExp(`^${numPrefix}\\s*${esc(lastAbbr3)}\\w*\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'));
-      // Sometimes the number is missing: "Corinthians 5:10"
       patterns.push(new RegExp(`^${esc(lastFull)}\\s+${chap}\\s*:?\\s*${vers}\\s*[–—,:-]*\\s*`, 'i'));
     }
   }
 
   for (let i = 0; i < 2; i++) {
-    // Normalize whitespace
     t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
-
-    // Remove provider labels at start
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
-
-    // Remove duplicated reference heading
     for (const re of patterns) t = t.replace(re, '');
-
-    // Remove lingering "NLT10", ", NLT11", etc.
-    t = t.replace(/^[,;\s]*NLT\d+\s*/i, '');
-    t = t.replace(/^NLT\d+\s*/i, '');
-
-    // Strip a leading verse number if present
+    t = t.replace(/^[,;\s]*NLT\d+\s*/i, '').replace(/^NLT\d+\s*/i, '');
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
-
-    // Remove inline footnote markers (letters, daggers, superscripts)
-    t = t.replace(/\[[a-z]\d?\]/gi, '')
-         .replace(/[†‡]/g, '')
-         .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
-
-    // NEW: remove any editorial bracketed inserts like "[the]"
+    t = t.replace(/\[[a-z]\d?\]/gi, '').replace(/[†‡]/g, '').replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
     t = t.replace(/\[[^\]]+\]/g, '');
-
-    // NEW: remove inline NLT footnote sentences that start with "*5 Other manuscripts ..." / "*2 Some manuscripts ..."
     t = t.replace(/\s*\*+\d+\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi, '');
-    // NEW: catch variants such as "*2 Or, ..." / "*3 That is, ..." / "*4 This means, ..."
     t = t.replace(/\s*\*+\d+\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi, '');
-
-    // Remove trailing cross-reference footnotes at end of line
     t = t.replace(/([”"'.!?])\s*\*.*$/, '$1');
     t = t.replace(/\s*[*^]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
     t = t.replace(/\s*[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
-
-    // Tidy punctuation spacing
-    t = t.replace(/\s+([,.;:!?])/g, '$1')
-         .replace(/“\s+/g, '“')
-         .replace(/\s+”/g, '”')
-         .replace(/\s+([’'])/g, '$1')
-         .replace(/([‘'])\s+/g, '$1')
-         .trim();
+    t = t.replace(/\s+([,.;:!?])/g, '$1').replace(/“\s+/g, '“').replace(/\s+”/g, '”')
+         .replace(/\s+([’'])/g, '$1').replace(/([‘'])\s+/g, '$1').trim();
   }
-
   return t;
 }
 
 // ---------- Bible API fetch (NLT only) ----------
-const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
-
-// ---- Robust ref builder & fetcher for NLT API ----
+const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST';
 
 // Parse "Book Chapter:Verse" into { book, chap, vers }
 function parseRef(reference) {
   const m = String(reference || '').trim().match(/^(.+?)\s+(\d+):(\d+)$/);
   if (!m) return null;
   let [, book, chap, vers] = m;
-  return {
-    book: book.trim().replace(/\s+/g, ' '),
-    chap,
-    vers
-  };
+  return { book: book.trim().replace(/\s+/g, ' '), chap, vers };
 }
 
-// Produce a list of likely NLT API refs to try, in order of likelihood.
-// e.g. "1 Corinthians 13:4" -> ["1Corinthians.13:4", "1.Corinthians.13:4", "1.Corinthians.13:4"]
+// Produce a list of likely NLT API refs to try
 function buildNltCandidates(reference) {
   const p = parseRef(reference);
-  if (!p) return [reference.replace(/\s+/g, '.')]; // fallback single-shot
-
+  if (!p) return [reference.replace(/\s+/g, '.')];
   const { book, chap, vers } = p;
   const words = book.split(' ');
   const first = words[0];
   const restWords = words.slice(1);
   const restNoSpaces = restWords.join('');
   const restDots = restWords.join('.');
-
-  // Non-numbered books: "Song of Songs" -> "Song.of.Songs"
   if (!/^[1-3]$/.test(first)) {
     return [
-      `${words.join('.')}.${chap}:${vers}`, // "Song.of.Songs.1:2"
-      `${book.replace(/\s+/g, '')}.${chap}:${vers}` // "SongofSongs.1:2"
+      `${words.join('.')}.${chap}:${vers}`,
+      `${book.replace(/\s+/g, '')}.${chap}:${vers}`
     ];
   }
-
-  // Numbered books (1/2/3 prefix)
-  const n = first; // "1","2","3"
+  const n = first;
   return [
-    `${n}${restNoSpaces}.${chap}:${vers}`,      // "1Corinthians.13:4"
-    `${n}.${restNoSpaces}.${chap}:${vers}`,    // "1.Corinthians.13:4"
-    `${n}.${restDots}.${chap}:${vers}`,        // "1.Corinthians.13:4" (dots between rest words)
-    `${n}${restDots}.${chap}:${vers}`,         // "1Corinthians.13:4" (if restDots == restNoSpaces it's same)
+    `${n}${restNoSpaces}.${chap}:${vers}`,
+    `${n}.${restNoSpaces}.${chap}:${vers}`,
+    `${n}.${restDots}.${chap}:${vers}`,
+    `${n}${restDots}.${chap}:${vers}`,
   ];
 }
 
 async function fetchVerseText(reference) {
   const url = 'https://api.nlt.to/api/passages';
   const candidates = buildNltCandidates(reference);
-
-  // try each candidate until one works
   let lastErr;
   for (const refForApi of candidates) {
     try {
@@ -296,42 +250,30 @@ async function fetchVerseText(reference) {
       const plain = htmlToPlainText(html);
       const cleaned = cleanVerseText(plain, reference);
       if (cleaned) return cleaned;
-    } catch (e) {
-      lastErr = e;
-      // continue to next candidate
-    }
+    } catch (e) { lastErr = e; }
   }
-  // If all candidates failed, throw so caller can handle (admin will report "generate_failed")
   throw lastErr || new Error('nlt_lookup_failed');
 }
 
-/* ========= New: extended range helpers & fetcher ========= */
+/* ========= NEW: Extended range helpers & fetcher ========= */
 
-// Parse "Book C:V1–V2" (range) like "Jude 1:5-7" or "Mark 7:24–30"
+// Parse "Book C:V1–V2" like "Jude 1:5-7"
 function parseRangeRef(reference) {
   const m = String(reference || '').trim().match(/^(.+?)\s+(\d+):(\d+)\s*[-–]\s*(\d+)$/);
   if (!m) return null;
   let [, book, chap, start, end] = m;
-  return {
-    book: book.trim().replace(/\s+/g, ' '),
-    chap,
-    start,
-    end
-  };
+  return { book: book.trim().replace(/\s+/g, ' '), chap, start, end };
 }
 
-// Build NLT candidates for ranges too (works with "Jude 1:5-7")
 function buildNltCandidatesRange(reference) {
   const p = parseRangeRef(reference);
-  if (!p) return [reference.replace(/\s+/g, '.').replace('–', '-')]; // minimal fallback
-
+  if (!p) return [reference.replace(/\s+/g, '.').replace('–', '-')];
   const { book, chap, start, end } = p;
   const words = book.split(' ');
   const first = words[0];
   const restWords = words.slice(1);
   const restNoSpaces = restWords.join('');
   const restDots = restWords.join('.');
-
   if (!/^[1-3]$/.test(first)) {
     return [
       `${words.join('.')}.${chap}:${start}-${end}`,
@@ -347,7 +289,6 @@ function buildNltCandidatesRange(reference) {
   ];
 }
 
-// Fetch full passage text for a range (returns cleaned plain text, preserves verse numbers)
 async function fetchPassageText(referenceRange) {
   const url = 'https://api.nlt.to/api/passages';
   const candidates = buildNltCandidatesRange(referenceRange);
@@ -358,14 +299,13 @@ async function fetchPassageText(referenceRange) {
       const resp = await axios.get(url, { params, timeout: 15000 });
       const data = resp?.data;
       const html = typeof data === 'string' ? data : (data?.html || data?.text || '');
-      const text = htmlToPlainText(html); // keep numbers
+      const text = htmlToPlainText(html); // keep verse numbers
       if (text) return text;
     } catch (e) { lastErr = e; }
   }
   throw lastErr || new Error('nlt_range_lookup_failed');
 }
-
-/* ======================================================== */
+/* ========================================================= */
 
 // ---------- Suitability classifier (with retries) ----------
 async function classifySuitability(reference, text) {
@@ -476,16 +416,14 @@ function writeAll(payload) {
    ======================= */
 
 function normalizeReferenceForDisplay(ref) {
-  // Try "number + word + C:V" first, e.g. "1 Co 5:10", "2 Thess 3:16"
   let m = String(ref || '').trim().match(/^([1-3])\s*([A-Za-z.]+)\s+(\d+):(\d+)$/);
   if (m) {
     const num = m[1];
-    const raw = m[2].replace(/\./g, ''); // "Co" or "Cor"
+    const raw = m[2].replace(/\./g, '');
     const chap = m[3], vers = m[4];
-    const full = BOOK_EXPANSIONS[raw] || raw; // expand if we know it
+    const full = BOOK_EXPANSIONS[raw] || raw;
     return `${num} ${capitalize(full)} ${chap}:${vers}`;
   }
-  // Non-numbered books: "John 3:16", "Song of Songs 1:2"
   m = String(ref || '').trim().match(/^(.+?)\s+(\d+):(\d+)$/);
   if (m) return `${titleCase(m[1])} ${m[2]}:${m[3]}`;
   return ref;
@@ -530,36 +468,31 @@ async function generateForDate(dateISO, forcedReference = null) {
     rating = { safe: true, category: 'edifying', reason: 'admin_override' };
   }
 
-  // Generate explainer HTML
   const context = await generateContext(reference, text);
 
-  // -------- Extract and preload the Extended Passage --------
-  // Looks for: <h3>Extended Verse</h3><p>Mark 7:24–30</p>
+  // ===== NEW: extract and preload Extended Passage =====
   let extendedRef = null;
   try {
     const m = context.match(/<h3>\s*Extended Verse\s*<\/h3>\s*<p>([^<]+)<\/p>/i);
-    if (m) extendedRef = m[1].trim().replace(/\u2013/g, '-'); // normalize en–dash to hyphen
+    if (m) extendedRef = m[1].trim().replace(/\u2013/g, '-'); // normalize en–dash
   } catch {}
-
   let extendedText = null;
   if (extendedRef) {
-    try {
-      extendedText = await fetchPassageText(extendedRef);
-    } catch {
-      extendedText = null; // ok if this fails; UI will still show the reference
-    }
+    try { extendedText = await fetchPassageText(extendedRef); }
+    catch { extendedText = null; }
   }
-  // ---------------------------------------------------------
+  // =====================================================
 
   const displayRef = normalizeReferenceForDisplay(reference);
 
   const payload = {
     date: dateKey,
-    reference: displayRef,   // pretty version
+    reference: displayRef,   // pretty
     text,
     context,
     rating,
     translation: 'NLT',
+    // NEW field (used by the UI toggle)
     extended: extendedRef ? { reference: extendedRef, text: extendedText } : null
   };
 
