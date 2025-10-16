@@ -233,12 +233,9 @@ function cleanVerseText(text, reference) {
   return t;
 }
 
-
-
-
-
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST'; // anonymous/testing is OK but rate-limited
+
 // ---- Robust ref builder & fetcher for NLT API ----
 
 // Parse "Book Chapter:Verse" into { book, chap, vers }
@@ -308,6 +305,67 @@ async function fetchVerseText(reference) {
   throw lastErr || new Error('nlt_lookup_failed');
 }
 
+/* ========= New: extended range helpers & fetcher ========= */
+
+// Parse "Book C:V1–V2" (range) like "Jude 1:5-7" or "Mark 7:24–30"
+function parseRangeRef(reference) {
+  const m = String(reference || '').trim().match(/^(.+?)\s+(\d+):(\d+)\s*[-–]\s*(\d+)$/);
+  if (!m) return null;
+  let [, book, chap, start, end] = m;
+  return {
+    book: book.trim().replace(/\s+/g, ' '),
+    chap,
+    start,
+    end
+  };
+}
+
+// Build NLT candidates for ranges too (works with "Jude 1:5-7")
+function buildNltCandidatesRange(reference) {
+  const p = parseRangeRef(reference);
+  if (!p) return [reference.replace(/\s+/g, '.').replace('–', '-')]; // minimal fallback
+
+  const { book, chap, start, end } = p;
+  const words = book.split(' ');
+  const first = words[0];
+  const restWords = words.slice(1);
+  const restNoSpaces = restWords.join('');
+  const restDots = restWords.join('.');
+
+  if (!/^[1-3]$/.test(first)) {
+    return [
+      `${words.join('.')}.${chap}:${start}-${end}`,
+      `${book.replace(/\s+/g, '')}.${chap}:${start}-${end}`,
+    ];
+  }
+  const n = first;
+  return [
+    `${n}${restNoSpaces}.${chap}:${start}-${end}`,
+    `${n}.${restNoSpaces}.${chap}:${start}-${end}`,
+    `${n}.${restDots}.${chap}:${start}-${end}`,
+    `${n}${restDots}.${chap}:${start}-${end}`,
+  ];
+}
+
+// Fetch full passage text for a range (returns cleaned plain text, preserves verse numbers)
+async function fetchPassageText(referenceRange) {
+  const url = 'https://api.nlt.to/api/passages';
+  const candidates = buildNltCandidatesRange(referenceRange);
+  let lastErr;
+  for (const refForApi of candidates) {
+    try {
+      const params = { ref: refForApi, version: 'NLT', key: NLT_API_KEY };
+      const resp = await axios.get(url, { params, timeout: 15000 });
+      const data = resp?.data;
+      const html = typeof data === 'string' ? data : (data?.html || data?.text || '');
+      const text = htmlToPlainText(html); // keep numbers
+      if (text) return text;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('nlt_range_lookup_failed');
+}
+
+/* ======================================================== */
 
 // ---------- Suitability classifier (with retries) ----------
 async function classifySuitability(reference, text) {
@@ -417,7 +475,6 @@ function writeAll(payload) {
    Public functions
    ======================= */
 
-
 function normalizeReferenceForDisplay(ref) {
   // Try "number + word + C:V" first, e.g. "1 Co 5:10", "2 Thess 3:16"
   let m = String(ref || '').trim().match(/^([1-3])\s*([A-Za-z.]+)\s+(\d+):(\d+)$/);
@@ -473,16 +530,37 @@ async function generateForDate(dateISO, forcedReference = null) {
     rating = { safe: true, category: 'edifying', reason: 'admin_override' };
   }
 
+  // Generate explainer HTML
   const context = await generateContext(reference, text);
+
+  // -------- Extract and preload the Extended Passage --------
+  // Looks for: <h3>Extended Verse</h3><p>Mark 7:24–30</p>
+  let extendedRef = null;
+  try {
+    const m = context.match(/<h3>\s*Extended Verse\s*<\/h3>\s*<p>([^<]+)<\/p>/i);
+    if (m) extendedRef = m[1].trim().replace(/\u2013/g, '-'); // normalize en–dash to hyphen
+  } catch {}
+
+  let extendedText = null;
+  if (extendedRef) {
+    try {
+      extendedText = await fetchPassageText(extendedRef);
+    } catch {
+      extendedText = null; // ok if this fails; UI will still show the reference
+    }
+  }
+  // ---------------------------------------------------------
+
   const displayRef = normalizeReferenceForDisplay(reference);
 
   const payload = {
     date: dateKey,
-    reference: displayRef,   // << use the full, pretty version
+    reference: displayRef,   // pretty version
     text,
     context,
     rating,
     translation: 'NLT',
+    extended: extendedRef ? { reference: extendedRef, text: extendedText } : null
   };
 
   writeAll(payload);
