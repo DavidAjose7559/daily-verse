@@ -1,5 +1,5 @@
 // generate.js
-// -------------------------------------------------------------
+// --------------------------------------------------------------
 // Generates the "daily verse" payload with doctrine guardrails,
 // an edification filter, retries, atomic writes, and an archive.
 //
