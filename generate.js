@@ -190,14 +190,52 @@ function cleanVerseText(text, reference) {
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
     t = t.replace(/\[[a-z]\d?\]/gi, '').replace(/[†‡]/g, '').replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
     t = t.replace(/\[[^\]]+\]/g, '');
+
+    // remove common NLT footnote sentences
     t = t.replace(/\s*\*+\d+\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi, '');
     t = t.replace(/\s*\*+\d+\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi, '');
+    // generic "*20 ..." style footnotes
+    t = t.replace(/\s*\*+\d+\s+[^.]*\.(?=\s|$)/gi, '');
+
     t = t.replace(/([”"'.!?])\s*\*.*$/, '$1');
     t = t.replace(/\s*[*^]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
     t = t.replace(/\s*[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
     t = t.replace(/\s+([,.;:!?])/g, '$1').replace(/“\s+/g, '“').replace(/\s+”/g, '”')
          .replace(/\s+([’'])/g, '$1').replace(/([‘'])\s+/g, '$1').trim();
   }
+  return t;
+}
+
+// Clean a multi-verse passage while keeping the verse numbers.
+// - strips NLT header lines and any headings above the first verse number
+// - removes the same footnotes as cleanVerseText
+function cleanPassageText(passagePlain) {
+  let t = String(passagePlain || '');
+
+  // Normalize whitespace
+  t = t.replace(/\u00A0/g, ' ');
+
+  // Remove any leading "NLT API" / "NLT" labels and reference lines
+  t = t.replace(/^NLT\s*API.*$/gmi, '')
+       .replace(/^NLT.*$/gmi, '');
+
+  // Drop everything before the first verse number (e.g., headings like "A Call to Remain Faithful")
+  const m = t.match(/(^|\n)\s*\d{1,3}[\sA-Za-z“"‘']/);
+  if (m && m.index != null) t = t.slice(m.index).trim();
+
+  // Remove footnote markers & superscripts
+  t = t.replace(/\[[a-z]\d?\]/gi, '')
+       .replace(/[†‡]/g, '')
+       .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
+
+  // Remove common NLT footnote sentences and generic "*20 ..." notes
+  t = t.replace(/\s*\*+\d+\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi, '')
+       .replace(/\s*\*+\d+\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi, '')
+       .replace(/\s*\*+\d+\s+[^.]*\.(?=\s|$)/gi, '');
+
+  // Tidy spaces
+  t = t.replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').trim();
+
   return t;
 }
 
@@ -255,7 +293,7 @@ async function fetchVerseText(reference) {
   throw lastErr || new Error('nlt_lookup_failed');
 }
 
-/* ========= NEW: Extended range helpers & fetcher ========= */
+/* ========= Extended range helpers & fetcher ========= */
 
 // Parse "Book C:V1–V2" like "Jude 1:5-7"
 function parseRangeRef(reference) {
@@ -299,8 +337,12 @@ async function fetchPassageText(referenceRange) {
       const resp = await axios.get(url, { params, timeout: 15000 });
       const data = resp?.data;
       const html = typeof data === 'string' ? data : (data?.html || data?.text || '');
-      const text = htmlToPlainText(html); // keep verse numbers
-      if (text) return text;
+      const plain = htmlToPlainText(html);
+
+      // Clean the extended passage (remove headers/footnotes, keep verse numbers)
+      const cleaned = cleanPassageText(plain);
+      if (cleaned) return cleaned;
+
     } catch (e) { lastErr = e; }
   }
   throw lastErr || new Error('nlt_range_lookup_failed');
@@ -470,7 +512,7 @@ async function generateForDate(dateISO, forcedReference = null) {
 
   const context = await generateContext(reference, text);
 
-  // ===== NEW: extract and preload Extended Passage =====
+  // Extract and preload Extended Passage (from the HTML's "Extended Verse" section)
   let extendedRef = null;
   try {
     const m = context.match(/<h3>\s*Extended Verse\s*<\/h3>\s*<p>([^<]+)<\/p>/i);
@@ -481,7 +523,6 @@ async function generateForDate(dateISO, forcedReference = null) {
     try { extendedText = await fetchPassageText(extendedRef); }
     catch { extendedText = null; }
   }
-  // =====================================================
 
   const displayRef = normalizeReferenceForDisplay(reference);
 
@@ -492,7 +533,6 @@ async function generateForDate(dateISO, forcedReference = null) {
     context,
     rating,
     translation: 'NLT',
-    // NEW field (used by the UI toggle)
     extended: extendedRef ? { reference: extendedRef, text: extendedText } : null
   };
 
