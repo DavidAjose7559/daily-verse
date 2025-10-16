@@ -157,6 +157,7 @@ const BOOK_EXPANSIONS = {
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
+  // Parse "Book Chapter:Verse"
   const m = String(reference || '').match(/^(.+?)\s+(\d+):(\d+)$/) || [];
   const book = m[1] || '';
   const chap = m[2] || '';
@@ -164,12 +165,12 @@ function cleanVerseText(text, reference) {
 
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  // Build helpful pieces for numbered books (e.g., "1 Co" / "1 Corinthians")
+  // Build helpers for numbered books (e.g., "1 Co" / "1 Corinthians")
   const parts = book.split(/\s+/);
   const numPrefix = /^[1-3]$/.test(parts[0]) ? parts[0] : '';
-  const lastWord  = parts.slice(-1)[0] || '';                  // "Co" or "Corinthians"
-  const lastAbbr3 = lastWord.slice(0, 3);                      // "Co" -> "Co", "Corinthians" -> "Cor"
-  const lastFull  = BOOK_EXPANSIONS[lastWord] || lastWord;     // "Co" -> "Corinthians"
+  const lastWord  = parts.slice(-1)[0] || '';              // "Co" or "Corinthians"
+  const lastAbbr3 = lastWord.slice(0, 3);                  // "Co" -> "Co", "Corinthians" -> "Cor"
+  const lastFull  = BOOK_EXPANSIONS[lastWord] || lastWord; // "Co" -> "Corinthians"
 
   // Patterns that may appear at the very start of the API text
   const patterns = [];
@@ -188,13 +189,13 @@ function cleanVerseText(text, reference) {
     // Normalize whitespace
     t = t.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Remove provider labels
+    // Remove provider labels at start
     t = t.replace(/^(?:NLT\s*API|NLT)\s*[:\-]?\s*/i, '');
 
-    // Remove the duplicate reference header (try all patterns)
+    // Remove duplicated reference heading
     for (const re of patterns) t = t.replace(re, '');
 
-    // Remove things like ", NLT10" / "NLT11" lingering after the header
+    // Remove lingering "NLT10", ", NLT11", etc.
     t = t.replace(/^[,;\s]*NLT\d+\s*/i, '');
     t = t.replace(/^NLT\d+\s*/i, '');
 
@@ -202,12 +203,20 @@ function cleanVerseText(text, reference) {
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '');
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
 
-    // Remove inline footnote markers
+    // Remove inline footnote markers (letters, daggers, superscripts)
     t = t.replace(/\[[a-z]\d?\]/gi, '')
          .replace(/[†‡]/g, '')
          .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
 
-    // Remove trailing cross-reference footnotes
+    // NEW: remove any editorial bracketed inserts like "[the]"
+    t = t.replace(/\[[^\]]+\]/g, '');
+
+    // NEW: remove inline NLT footnote sentences that start with "*5 Other manuscripts ..." / "*2 Some manuscripts ..."
+    t = t.replace(/\s*\*+\d+\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi, '');
+    // NEW: catch variants such as "*2 Or, ..." / "*3 That is, ..." / "*4 This means, ..."
+    t = t.replace(/\s*\*+\d+\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi, '');
+
+    // Remove trailing cross-reference footnotes at end of line
     t = t.replace(/([”"'.!?])\s*\*.*$/, '$1');
     t = t.replace(/\s*[*^]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
     t = t.replace(/\s*[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
@@ -223,6 +232,7 @@ function cleanVerseText(text, reference) {
 
   return t;
 }
+
 
 
 
