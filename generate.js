@@ -109,6 +109,7 @@ const BOOK_EXPANSIONS = {
 };
 
 // ---------- MAIN VERSE cleaner ----------
+// ---------- MAIN VERSE cleaner ----------
 function cleanVerseText(text, reference) {
   let t = String(text || '').trim();
 
@@ -137,69 +138,86 @@ function cleanVerseText(text, reference) {
     for (const re of patterns) t = t.replace(re, '');
     t = t.replace(/^[,;\s]*NLT\d+\s*/i, '').replace(/^NLT\d+\s*/i, '');
 
-    // strip a leading verse number if present
+    // Strip a leading verse number if present
     t = t.replace(/^[\[\(]?\d{1,3}[\]\)]?(?=[A-Za-z“"‘'])/, '')
          .replace(/^[\[\(]?\d{1,3}[\]\)]?\s+/, '');
 
-    // remove inline markers / superscripts
+    // Remove inline markers / superscripts
     t = t.replace(/\[[a-z]\d?\]/gi, '')
          .replace(/[†‡]/g, '')
          .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
 
-    // remove bracketed editorial inserts
+    // Remove bracketed editorial inserts
     t = t.replace(/\[[^\]]+\]/g, '');
 
-    // remove NLT footnote sentences (supports ranges + letter suffixes)
-    t = t.replace(/\s*\*+\d+(?:-\d+)?[a-z]?\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi, '')
-         .replace(/\s*\*+\d+(?:-\d+)?[a-z]?\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi, '')
-         .replace(/\s*\*+\d+(?:-\d+)?[a-z]?\s+[^.]*\.(?=\s|$)/gi, '');
+    // Remove NLT footnote sentences (handles *7:24, *22–23a, *23b, etc.)
+    t = t.replace(/\s*\*+\d+(?::\d+)?(?:-\d+(?::\d+)?)?[a-z]?\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi, '')
+         .replace(/\s*\*+\d+(?::\d+)?(?:-\d+(?::\d+)?)?[a-z]?\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi, '')
+         .replace(/\s*\*+\d+(?::\d+)?(?:-\d+(?::\d+)?)?[a-z]?\s+[^.]*\.(?=\s|$)/gi, '');
 
-    // remove trailing cross-reference lines
+    // Remove trailing cross-reference lines
     t = t.replace(/([”"'.!?])\s*\*.*$/, '$1')
          .replace(/\s*[*^]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '')
          .replace(/\s*[A-Z]\s*\d{0,3}:\d{1,3}\s+[A-Za-z].*$/, '');
 
-    // tidy punctuation
+    // Tidy punctuation
     t = t.replace(/\s+([,.;:!?])/g, '$1')
-         .replace(/“\s+/g, '“').replace(/\s+”/g, '”')
-         .replace(/\s+([’'])/g, '$1').replace(/([‘'])\s+/g, '$1')
-         .replace(/\. +but\b/g, '. But') // fix case after removed footnote
+         .replace(/“\s+/g, '“')
+         .replace(/\s+”/g, '”')
+         .replace(/\s+([’'])/g, '$1')
+         .replace(/([‘'])\s+/g, '$1')
+         .replace(/\. +but\b/g, '. But') // fix case if footnote removed mid-sentence
          .trim();
   }
+
   return t;
 }
 
+
+// ---------- EXTENDED PASSAGE cleaner ----------
 // ---------- EXTENDED PASSAGE cleaner ----------
 function cleanPassageText(passagePlain) {
   let t = String(passagePlain || '');
 
+  // Normalize whitespace early
   t = t.replace(/\u00A0/g, ' ');
 
-  // Remove any leading "NLT API" / "NLT" labels
+  // 1) Remove any leading provider labels / metadata lines
+  //    e.g., "NLT API", "NLT", "Jude 1:17-23, NLT"
   t = t.replace(/^NLT\s*API.*$/gmi, '')
        .replace(/^NLT.*$/gmi, '');
 
-  // Drop everything before the first verse number (e.g., headings)
-  const firstVerse = t.search(/(^|\n)\s*\d{1,3}\s*[A-Za-z“"‘']/);
-  if (firstVerse > -1) t = t.slice(firstVerse).trim();
+  // 2) Drop everything before the FIRST verse number.
+  //    (This strips pericope headings like "A Call to Remain Faithful".)
+  const firstVerseIdx = t.search(/(^|\n)\s*\d{1,3}\s*[A-Za-z“"‘']/);
+  if (firstVerseIdx > -1) t = t.slice(firstVerseIdx).trim();
 
-  // remove inline markers / superscripts
-  t = t.replace(/\[[a-z]\d?\]/gi, '')
-       .replace(/[†‡]/g, '')
-       .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '');
+  // 3) Remove inline markers / superscripts / bracketed inserts
+  t = t.replace(/\[[a-z]\d?\]/gi, '')            // [a], [b2]
+       .replace(/[†‡]/g, '')                     // daggers
+       .replace(/[\u00B9\u00B2\u00B3\u2070-\u209F]/g, '') // superscripts
+       .replace(/\[[^\]]+\]/g, '');              // editorial [the] etc.
 
-  // remove NLT footnote sentences (supports ranges + letter suffixes)
-  t = t.replace(/\s*\*+\d+(?:-\d+)?[a-z]?\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi, '')
-       .replace(/\s*\*+\d+(?:-\d+)?[a-z]?\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi, '')
-       .replace(/\s*\*+\d+(?:-\d+)?[a-z]?\s+[^.]*\.(?=\s|$)/gi, '');
+  // 4) Remove NLT-style footnote sentences, including:
+  //    *20 ..., *22-23a ..., *23b ..., *7:24 ..., *7:24-25a ...
+  const FN = /\s*\*+\d+(?::\d+)?(?:-\d+(?::\d+)?)?[a-z]?\s+[^.]*\.(?=\s|$)/gi;
+  const FN_OTHER = /\s*\*+\d+(?::\d+)?(?:-\d+(?::\d+)?)?[a-z]?\s+(?:Other|Some)\s+manuscripts[^.]*\.(?=\s|$)/gi;
+  const FN_OR = /\s*\*+\d+(?::\d+)?(?:-\d+(?::\d+)?)?[a-z]?\s+(?:Or|That\s+is|This\s+means)[^.]*\.(?=\s|$)/gi;
+  t = t.replace(FN_OTHER, '').replace(FN_OR, '').replace(FN, '');
 
-  // Tidy + fix capitalization after removed footnotes
-  t = t.replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n')
-       .replace(/\. +but\b/g, '. But')
-       .trim();
+  // 5) Tidy spaces/newlines and punctuation
+  t = t
+    .replace(/[ \t]+\n/g, '\n')   // trim line ends
+    .replace(/\n[ \t]+/g, '\n')   // trim line starts
+    .replace(/[ \t]{2,}/g, ' ')   // collapse runs of spaces
+    .replace(/\s+([,.;:!?])/g, '$1') // space before punctuation
+    // If a footnote sat in the middle of a sentence we can get ". but"
+    .replace(/\. +([a-z])/g, (_, c) => '. ' + c.toUpperCase())
+    .trim();
 
   return t;
 }
+
 
 // ---------- Bible API fetch (NLT only) ----------
 const NLT_API_KEY = process.env.NLT_API_KEY || 'TEST';
