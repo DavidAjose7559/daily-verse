@@ -20,7 +20,7 @@ You must align with these beliefs while staying biblically faithful and contextu
 `;
 
 // ---------- Quick blocklist ----------
-const BLOCKLIST = new Set(['Matthew 27:5','Judges 19:25','2 Samuel 13:14']);
+const BLOCKLIST = new Set(['Matthew 27:5','Judges 19:25','2 Samuel 13:14','Ephesians 4:30']);
 
 // ---------- Friendly fallback verses ----------
 const WHITELIST_DEFAULTS = [
