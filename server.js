@@ -297,7 +297,7 @@ app.get('/sitemap.xml', (_req, res) => {
 
 // Redirect root to your GitHub Pages frontend (Option A)
 app.get('/', (_req, res) => {
-  res.redirect('https://davidaajose7559.github.io/daily-verse/');
+  res.redirect('https://davidajose7559.github.io/daily-verse/');
 });
 
 // Health check
