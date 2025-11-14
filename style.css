@@ -223,8 +223,9 @@ a:hover { text-decoration: underline; }
 
   .actions { gap: .5rem; }
 
-  .actions button, .actions a { width: 100%; }
+  /* no width:100% here – let flex wrapping handle layout */
 }
+
 
 /* Toast notifications */
 .toast {
