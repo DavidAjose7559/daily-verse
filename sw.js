@@ -1,4 +1,4 @@
-const CACHE = 'dv-v1';
+/*const CACHE = 'dv-v1';
 const ASSETS = [
   '/daily-verse/',
   '/daily-verse/index.html',
@@ -31,3 +31,32 @@ self.addEventListener('fetch', e => {
     );
   }
 });
+*/
+
+// sw.js — kill-switch while you're developing
+
+// Install immediately
+self.addEventListener('install', event => {
+  self.skipWaiting();
+});
+
+// On activate: delete all caches, then unregister this service worker
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      } catch (e) {
+        // ignore
+      }
+      await self.registration.unregister();
+    })()
+  );
+});
+
+// Let all requests go straight to the network
+self.addEventListener('fetch', event => {
+  // do nothing: default browser behavior (no caching here)
+});
+
