@@ -1,0 +1,25 @@
+{
+  "name": "Daily Verse",
+  "short_name": "Daily Verse",
+  "start_url": "/daily-verse/",
+  "scope": "/daily-verse/",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "DA.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "DA-192.png", "sizes": "192x192", "type": "image/png" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today",
+      "url": "/daily-verse/",
+      "description": "Open today’s verse"
+    },
+    {
+      "name": "Archive",
+      "url": "/daily-verse/archive.html",
+      "description": "Browse recent verses"
+    }
+  ]
+}
