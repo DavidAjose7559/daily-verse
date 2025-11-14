@@ -54,13 +54,39 @@
   <link rel="alternate" type="application/rss+xml"
       title="Daily Verse RSS"
       href="https://daily-verse-viewer.onrender.com/feed.xml">
-<link rel="alternate" type="application/feed+json"
+  <link rel="alternate" type="application/feed+json"
       title="Daily Verse JSON Feed"
       href="https://daily-verse-viewer.onrender.com/feed.json">
 
 </head>
 <body>
   <a href="#main" class="skip-link">Skip to content</a>
+
+  <!-- Top navigation bar -->
+  <nav class="top-nav">
+    <div class="nav-left">
+      <a href="./" class="logo">Daily Verse</a>
+    </div>
+    <div class="nav-center">
+      <button id="prevBtn" class="nav-btn" type="button">Yesterday</button>
+      <button id="todayBtn" class="nav-btn" type="button" style="display:none">Today</button>
+      <a class="nav-link" href="archive.html">Archive</a>
+    </div>
+    <div class="nav-right">
+      <button id="themeBtn" class="nav-icon-btn" aria-label="Toggle dark or light theme">
+        Dark
+      </button>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation menu">☰</button>
+  </nav>
+
+  <!-- Mobile nav menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <button type="button" data-nav="yesterday">Yesterday</button>
+    <button type="button" data-nav="today" style="display:none">Today</button>
+    <a href="archive.html">Archive</a>
+  </div>
+
   <main id="main" class="container" role="main">
     <header class="page-header">
       <h1 id="reference" class="title">Daily Verse</h1>
@@ -71,22 +97,11 @@
       </div>
       <p id="text" class="verse-text"></p>
 
-            <div class="actions">
+      <div class="actions">
         <!-- Small primary actions right under the verse -->
         <div class="primary-actions">
           <button id="copyBtn" class="btn btn-sm">Copy</button>
           <button id="shareBtn" class="btn btn-sm btn-ghost">Share</button>
-        </div>
-
-        <!-- Secondary nav bar -->
-        <div class="secondary-actions">
-          <button id="prevBtn" class="btn btn-ghost">Yesterday</button>
-          <button id="todayBtn" class="btn" style="display:none">Today</button>
-          <a class="btn" href="archive.html">Archive</a>
-          <!-- Clear text for theme -->
-          <button id="themeBtn" class="btn btn-ghost" aria-label="Toggle dark or light theme">
-            Dark
-          </button>
         </div>
       </div>
 
@@ -162,8 +177,8 @@
       document.documentElement.setAttribute('data-theme', theme);
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b1020' : '#2563eb');
-       const btn = document.getElementById('themeBtn');
-  if (btn) btn.textContent = theme === 'dark' ? 'Light☀️' : 'Dark🌙';
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = theme === 'dark' ? 'Light☀️' : 'Dark🌙';
     }
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme');
@@ -175,7 +190,6 @@
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
       if (!localStorage.getItem(THEME_KEY)) applyTheme(e.matches ? 'dark' : 'light');
     });
-    document.getElementById('themeBtn')?.addEventListener('click', toggleTheme);
 
     // ==============================
     // CONFIG: API lives on Render
@@ -195,6 +209,12 @@
       todayBtn: document.getElementById('todayBtn'),
       debug: document.getElementById('debug'),
     };
+
+    // Nav + mobile menu elements
+    const navToggle = document.getElementById('navToggle');
+    const mobileMenu = document.getElementById('mobileMenu');
+    const mYesterday = mobileMenu ? mobileMenu.querySelector('[data-nav="yesterday"]') : null;
+    const mToday = mobileMenu ? mobileMenu.querySelector('[data-nav="today"]') : null;
 
     // ==============================
     // Full context sanitizer
@@ -293,6 +313,8 @@
         els.todayBtn.style.display = 'none';
         els.prevBtn.style.display  = 'inline-block';
         els.prevBtn.disabled = false;
+        if (mToday) mToday.style.display = 'none';
+        if (mYesterday) mYesterday.style.display = 'block';
         setQueryDate(null);
       } catch (e) {
         if (els.debug) {
@@ -313,6 +335,8 @@
         renderPayload(d);
         els.prevBtn.style.display  = 'none';
         els.todayBtn.style.display = 'inline-block';
+        if (mYesterday) mYesterday.style.display = 'none';
+        if (mToday) mToday.style.display = 'block';
         setQueryDate(dateIso);
       } catch (e) {
         toast(`No saved verse for ${dateIso}.`);
@@ -365,6 +389,13 @@
       await loadDaily();
     });
 
+    // Theme button analytics
+    document.getElementById('themeBtn')?.addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      plausible('Theme Toggle', { props: { page: 'home', theme: next }});
+      toggleTheme();
+    });
+
     // On load, disable Yesterday if no archive yet
     (async () => {
       try {
@@ -388,6 +419,8 @@
             renderPayload(d);
             els.prevBtn.style.display  = 'none';
             els.todayBtn.style.display = 'inline-block';
+            if (mYesterday) mYesterday.style.display = 'none';
+            if (mToday) mToday.style.display = 'block';
             return;
           }
         } catch {}
@@ -475,23 +508,44 @@
         btn.insertAdjacentElement('afterend', box);
       } catch {}
     }
-   // if ('serviceWorker' in navigator) {
-    //navigator.serviceWorker.register('/daily-verse/sw.js').catch(()=>{});
- // }
+
+    // ==============================
+    // Top navigation (mobile toggle)
+    // ==============================
+    if (navToggle && mobileMenu) {
+      navToggle.addEventListener('click', () => {
+        const open = mobileMenu.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+
+    if (mYesterday) {
+      mYesterday.addEventListener('click', async () => {
+        plausible('Navigate', { props: { to: 'yesterday' }});
+        await loadYesterday();
+        mobileMenu.classList.remove('open');
+      });
+    }
+    if (mToday) {
+      mToday.addEventListener('click', async () => {
+        plausible('Navigate', { props: { to: 'today' }});
+        await loadDaily();
+        mobileMenu.classList.remove('open');
+      });
+    }
+
     // TEMP: unregister all service workers + clear old caches
-//for edits
     if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(reg => reg.unregister());
-  });
-}
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+      });
+    }
 
-if ('caches' in window) {
-  caches.keys().then(keys => {
-    keys.forEach(k => caches.delete(k));
-  });
-}
-
+    if ('caches' in window) {
+      caches.keys().then(keys => {
+        keys.forEach(k => caches.delete(k));
+      });
+    }
 
   </script>
 </body>
