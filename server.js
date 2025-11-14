@@ -136,6 +136,62 @@ app.get('/api/archive/:date', (req, res) => {
   }
 });
 
+app.get('/feed.xml', (_req, res) => {
+  try {
+    const site = 'https://davidajose7559.github.io/daily-verse/';
+    const idxPath = path.join(PUBLIC_DIR, 'archive', 'index.json');
+    const list = JSON.parse(fs.readFileSync(idxPath, 'utf8')) || [];
+
+    const items = list.map(it => {
+      const url = `${site}?date=${it.date}`;
+      return `
+  <item>
+    <title>${it.reference || it.date}</title>
+    <link>${url}</link>
+    <guid isPermaLink="false">${it.date}</guid>
+    <pubDate>${new Date(it.date + 'T00:00:00-04:00').toUTCString()}</pubDate>
+  </item>`;
+    }).join('\n');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Daily Verse</title>
+  <link>${site}</link>
+  <description>Daily Bible verse with faithful context.</description>
+  ${items}
+</channel>
+</rss>`;
+    res.type('application/rss+xml').send(xml);
+  } catch {
+    res.status(500).send('feed_error');
+  }
+});
+
+app.get('/feed.json', (_req, res) => {
+  try {
+    const site = 'https://davidajose7559.github.io/daily-verse/';
+    const idxPath = path.join(PUBLIC_DIR, 'archive', 'index.json');
+    const list = JSON.parse(fs.readFileSync(idxPath, 'utf8')) || [];
+
+    const feed = {
+      version: "https://jsonfeed.org/version/1.1",
+      title: "Daily Verse",
+      home_page_url: site,
+      feed_url: "https://daily-verse-viewer.onrender.com/feed.json",
+      items: list.map(it => ({
+        id: it.date,
+        url: `${site}?date=${it.date}`,
+        title: it.reference || it.date,
+        date_published: it.date + "T00:00:00-04:00"
+      }))
+    };
+    res.json(feed);
+  } catch {
+    res.status(500).json({ error: 'feed_error' });
+  }
+});
+
 // Optional status
 app.get('/api/status', (_req, res) => {
   const dailyPath = path.join(PUBLIC_DIR, 'daily.json');
