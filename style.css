@@ -198,32 +198,43 @@ h3 {
 a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* Responsive */
+/* Mobile layout */
 @media (max-width: 600px) {
-  main, .container {
-    margin: 20px;
-    padding: 20px;
+  main,
+  .container {
+    margin: 20px auto;
+    padding: 22px 16px;
   }
 
-  h1 { font-size: 1.6rem; }
-
-  .actions { gap: .5rem; }
-
-  .actions button, .actions a { width: 100%; }
-}
-
-/* Responsive */
-@media (max-width: 600px) {
-  main, .container {
-    margin: 20px;
-    padding: 20px;
+  h1 {
+    font-size: 1.5rem;
   }
 
-  h1 { font-size: 1.6rem; }
+  /* Slightly smaller body text for better line length */
+  p,
+  #text {
+    font-size: 1rem;
+    line-height: 1.7;
+  }
 
-  .actions { gap: .5rem; }
+  .actions {
+    gap: .5rem;
+  }
 
-  /* no width:100% here – let flex wrapping handle layout */
+  .primary-actions,
+  .secondary-actions {
+    flex-wrap: wrap;
+  }
+
+  /* Important: no full-width buttons on mobile */
+  .actions button,
+  .actions a {
+    width: auto;              /* override previous width:100% */
+    flex: 1 1 auto;           /* let them share the row nicely */
+    padding: .5rem .8rem;
+    font-size: .95rem;
+    border-radius: .7rem;
+  }
 }
 
 
