@@ -259,3 +259,11 @@ footer a {
 footer a:hover {
   text-decoration: underline;
 }
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute; left: -9999px; top: 8px; background: var(--card);
+  color: var(--text); padding: .6rem .9rem; border: 1px solid var(--border);
+  border-radius: .6rem; z-index: 10000;
+}
+.skip-link:focus { left: 8px; outline: none; box-shadow: 0 0 0 3px var(--ring); }
