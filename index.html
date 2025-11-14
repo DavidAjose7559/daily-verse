@@ -71,15 +71,25 @@
       </div>
       <p id="text" class="verse-text"></p>
 
-      <div class="actions">
-        <button id="copyBtn" class="btn">Copy Verse</button>
-        <button id="shareBtn" class="btn btn-ghost">Share</button>
-        <button id="prevBtn" class="btn btn-ghost">Yesterday</button>
-        <button id="todayBtn" class="btn" style="display:none">Today</button>
-        <a class="btn" href="archive.html">Archive</a>
-        <!-- Dark mode toggle -->
-        <button id="themeBtn" class="btn btn-ghost" aria-label="Toggle theme">🌙</button>
+            <div class="actions">
+        <!-- Small primary actions right under the verse -->
+        <div class="primary-actions">
+          <button id="copyBtn" class="btn btn-sm">Copy</button>
+          <button id="shareBtn" class="btn btn-sm btn-ghost">Share</button>
+        </div>
+
+        <!-- Secondary nav bar -->
+        <div class="secondary-actions">
+          <button id="prevBtn" class="btn btn-ghost">Yesterday</button>
+          <button id="todayBtn" class="btn" style="display:none">Today</button>
+          <a class="btn" href="archive.html">Archive</a>
+          <!-- Clear text for theme -->
+          <button id="themeBtn" class="btn btn-ghost" aria-label="Toggle dark or light theme">
+            Dark
+          </button>
+        </div>
       </div>
+
     </header>
 
     <article id="context" class="card" aria-live="polite"></article>
