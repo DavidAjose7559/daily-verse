@@ -49,7 +49,7 @@
   <link rel="alternate" type="application/rss+xml"
       title="Daily Verse RSS"
       href="https://daily-verse-viewer.onrender.com/feed.xml">
-<link rel="alternate" type="application/feed+json"
+  <link rel="alternate" type="application/feed+json"
       title="Daily Verse JSON Feed"
       href="https://daily-verse-viewer.onrender.com/feed.json">
 
@@ -75,6 +75,28 @@
 </head>
 <body>
   <a href="#main" class="skip-link">Skip to content</a>
+
+  <!-- Top navigation bar -->
+  <nav class="top-nav">
+    <div class="nav-left">
+      <a href="./" class="logo">Daily Verse</a>
+    </div>
+    <div class="nav-center">
+      <a href="./" class="nav-link">Home</a>
+      <a href="archive.html" class="nav-link nav-link-active">Archive</a>
+    </div>
+    <div class="nav-right">
+      <button id="themeBtn" class="nav-icon-btn" aria-label="Toggle theme">🌙</button>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation menu">☰</button>
+  </nav>
+
+  <!-- Mobile nav menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="./">Home</a>
+    <a href="archive.html">Archive</a>
+  </div>
+
   <div id="main" class="container" role="main">
     <header class="header">
       <div>
@@ -83,8 +105,6 @@
       </div>
       <div class="toolbar">
         <a class="btn" href="./">Today</a>
-        <!-- Dark mode toggle -->
-        <button id="themeBtn" class="btn" aria-label="Toggle theme">🌙</button>
       </div>
     </header>
 
@@ -145,7 +165,11 @@
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
       if (!localStorage.getItem(THEME_KEY)) applyTheme(e.matches ? 'dark' : 'light');
     });
-    document.getElementById('themeBtn')?.addEventListener('click', toggleTheme);
+    document.getElementById('themeBtn')?.addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      plausible('Theme Toggle', { props: { page: 'archive', theme: next }});
+      toggleTheme();
+    });
 
     // ==============================
     // API base (Render on Pages, same-origin on Render)
@@ -247,33 +271,33 @@
       if (date) plausible('Open Archived Day', { props: { date }});
     });
 
-    // Track theme toggles on this page
-    document.getElementById('themeBtn')?.addEventListener('click', () => {
-      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      plausible('Theme Toggle', { props: { page: 'archive', theme: next }});
-    });
-
     // Load the archive list
     loadArchive();
 
-    //if ('serviceWorker' in navigator) {
-    //navigator.serviceWorker.register('/daily-verse/sw.js').catch(()=>{});
-  //}
+    // ==============================
+    // Top navigation (mobile toggle)
+    // ==============================
+    const navToggle = document.getElementById('navToggle');
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (navToggle && mobileMenu) {
+      navToggle.addEventListener('click', () => {
+        const open = mobileMenu.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
 
-    //for edits
     // TEMP: unregister all service workers + clear old caches
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(reg => reg.unregister());
-  });
-}
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+      });
+    }
 
-if ('caches' in window) {
-  caches.keys().then(keys => {
-    keys.forEach(k => caches.delete(k));
-  });
-}
-
+    if ('caches' in window) {
+      caches.keys().then(keys => {
+        keys.forEach(k => caches.delete(k));
+      });
+    }
 
   </script>
 </body>
