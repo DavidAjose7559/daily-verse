@@ -145,9 +145,17 @@ h3 {
 /* Actions: Copy / Share / Nav / Theme */
 .actions {
   display: flex;
+  flex-direction: column;
   gap: .6rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin: 1rem 0 2rem;
+}
+
+.primary-actions,
+.secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
 }
 
 .actions button,
@@ -162,19 +170,16 @@ h3 {
   text-decoration: none;
 }
 
-.actions button:hover,
-.actions a:hover {
-  background: rgba(0,0,0,0.04);
+/* smaller pills just for Copy / Share */
+.btn-sm {
+  padding: .4rem .7rem;
+  font-size: .9rem;
 }
 
-.actions button:active {
-  transform: translateY(1px);
-}
-
-.actions button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--ring);
-  border-color: var(--brand);
+/* Let nav buttons shrink nicely */
+.secondary-actions .btn,
+.secondary-actions a {
+  flex: 1 1 auto;
 }
 
 /* Debug (dev only) */
