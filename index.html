@@ -162,8 +162,8 @@
       document.documentElement.setAttribute('data-theme', theme);
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b1020' : '#2563eb');
-      const btn = document.getElementById('themeBtn');
-      if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+       const btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = theme === 'dark' ? 'Light☀️' : 'Dark🌙';
     }
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme');
