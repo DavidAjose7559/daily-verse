@@ -284,3 +284,125 @@ footer a:hover {
   border-radius: .6rem; z-index: 10000;
 }
 .skip-link:focus { left: 8px; outline: none; box-shadow: 0 0 0 3px var(--ring); }
+
+/* ========================= */
+/* Top navigation bar        */
+/* ========================= */
+
+.top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Light mode background for nav */
+:root[data-theme="light"] .top-nav {
+  background: rgba(244, 246, 248, 0.9);
+}
+
+.logo {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav-center {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.nav-link,
+.nav-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.nav-link:hover,
+.nav-btn:hover,
+.nav-link-active {
+  color: var(--text);
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-icon-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Hamburger + mobile menu */
+.nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.mobile-menu {
+  display: none;
+  position: sticky;
+  top: 52px;
+  z-index: 1100;
+  padding: 0.75rem 1.25rem 0.9rem;
+  background: rgba(15, 23, 42, 0.98);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+:root[data-theme="light"] .mobile-menu {
+  background: rgba(244, 246, 248, 0.98);
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+.mobile-menu a,
+.mobile-menu button {
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Responsive nav: collapse center into hamburger */
+@media (max-width: 700px) {
+  .nav-center {
+    display: none;
+  }
+  .nav-toggle {
+    display: block;
+  }
+}
